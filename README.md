@@ -31,7 +31,7 @@ On macOS, a browser download is quarantined; run `xattr -d com.apple.quarantine 
 go install github.com/moritzwilksch/lazyfwd@latest
 ```
 
-**From source.** In a checkout, run `go build .` with Go 1.24 or later, or `pixi run build` with [pixi](https://pixi.sh), which brings its own Go. Both write `./lazyfwd`.
+**From source.** In a checkout, run `go build .` with Go 1.24 or later, or `pixi run build` with [pixi](https://pixi.sh), which brings its own Go. Both write `./lazyfwd`. To contribute, run `pixi run lefthook-install` once: the pre-commit hook (`.lefthook.yml`) then formats and lints the staged files, and `pixi run lint` runs it over every file, as CI does.
 
 `lazyfwd --version` prints the version.
 

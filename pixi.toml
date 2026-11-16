@@ -8,7 +8,7 @@ build = "go build -o lazyfwd ."
 check = "go vet ./... && go test ./..."
 run = "go run ."
 # The pre-commit hook (.lefthook.yml) over every file, as CI runs it.
-lint = "lefthook run pre-commit --all-files"
+lint = "lefthook run pre-commit --all-files --no-stage-fixed"
 lefthook-install = "lefthook install"
 
 [dependencies]
