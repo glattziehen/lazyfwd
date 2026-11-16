@@ -71,6 +71,8 @@ type Model struct {
 	listenerIndex         int
 	isShowingAllListeners bool
 	isShowingHelp         bool
+	// quitDialog is open while lazyfwd asks whether to quit.
+	quitDialog *quitDialog
 	// loginHosts queues hosts that need an interactive login; the first one's
 	// login holds the terminal.
 	loginHosts []string
@@ -153,6 +155,9 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			m.isShowingHelp = false // any key closes the help
 			return m, nil
 		}
+		if m.quitDialog != nil {
+			return m.updateQuitDialog(msg)
+		}
 		if isMovementBurst(msg) {
 			for _, key := range msg.Runes {
 				m, _ = m.updateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
@@ -191,8 +196,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch key := msg.String(); key {
 	case "q", "ctrl+c":
-		m.owner.Close()
-		return m, tea.Quit
+		m.quitDialog = &quitDialog{}
 	case "tab", "l", "right":
 		cmd = m.focusPanel(m.focus%panelCount + 1)
 	case "shift+tab", "h", "left":

@@ -93,6 +93,9 @@ func (m Model) View() string {
 	if m.isShowingHelp {
 		return lipgloss.JoinVertical(lipgloss.Left, m.helpView(bodyHeight), footer)
 	}
+	if m.quitDialog != nil {
+		return lipgloss.JoinVertical(lipgloss.Left, m.quitView(bodyHeight), footer)
+	}
 	live := m.liveForwards()
 	liveLines := m.forwardLines(live)
 	if len(liveLines) == 0 {
@@ -337,7 +340,7 @@ func (m Model) modal(title string, lines []string, height int) string {
 // footer shows the selected forward's ssh command or failure, the last message, and the keys.
 func (m Model) footer() string {
 	var lines []string
-	if forward, ok := m.focusedForward(); ok && m.form == nil {
+	if forward, ok := m.focusedForward(); ok && m.form == nil && m.quitDialog == nil {
 		if status := m.state.Status(forward.ID); status.State == tunnel.Failed {
 			lines = append(lines, styleFailed.Render("✗ "+status.Reason))
 		} else {
@@ -368,6 +371,8 @@ func (m Model) keyHints() []keyHint {
 		return []keyHint{{"enter", "save"}, {"esc", "cancel"}, {"tab", "next field"}}
 	case m.isShowingHelp:
 		return []keyHint{{"any key", "closes the help"}}
+	case m.quitDialog != nil:
+		return []keyHint{{"enter", "choose"}, {"y", "quit"}, {"n/esc", "cancel"}, {"h/l", "move"}}
 	case m.focus == panelLive:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "start/stop"}, {"enter", "go to"}, {"o", "open"}, {"e", "edit"}, {"d", "delete"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelHosts:
