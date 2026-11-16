@@ -5,7 +5,8 @@
 //
 //   - LAZYFWD_E2E_HOST: a host ssh reaches without prompts, on this machine's
 //     network, so that it reaches the test's servers on 127.0.0.1 too.
-//   - LAZYFWD_E2E_SSHD_PORT: the port its sshd listens on there.
+//   - LAZYFWD_E2E_SSHD_PORT: the port its sshd listens on there, which the
+//     port list must show. Optional: WSL 1 lists no listening sockets.
 //   - LAZYFWD_E2E_CONFIG_FORWARD_HOST: the same host under an alias whose ssh
 //     config has a LocalForward line.
 //   - LAZYFWD_E2E_DENIED_HOST: the same host under an alias that ssh cannot
@@ -30,8 +31,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/glattziehen/lazyfwd/internal/tunnel"
 )
 
 // greeting is what the test's HTTP server answers.
@@ -223,8 +222,8 @@ func eventually(t *testing.T, what string, check func() string) {
 	}
 }
 
-// assertNothingLeft fails unless no ssh of this world runs and every port is
-// free again.
+// assertNothingLeft fails unless no ssh of this world runs and nothing
+// listens on the ports any more.
 func (w *world) assertNothingLeft(ports ...int) {
 	w.t.Helper()
 	eventually(w.t, "after lazyfwd ended", func() string {
@@ -232,12 +231,27 @@ func (w *world) assertNothingLeft(ports ...int) {
 			return fmt.Sprintf("ssh still runs: %v", processes)
 		}
 		for _, port := range ports {
-			if !tunnel.IsLocalPortFree(port) {
-				return fmt.Sprintf("port %d is still bound", port)
+			if isListening(port) {
+				return fmt.Sprintf("port %d still listens", port)
 			}
 		}
 		return ""
 	})
+}
+
+// isListening reports whether something accepts connections on port on the
+// loopback, IPv4 or IPv6. It connects rather than binds: right after a
+// forward stops, its connections' TIME_WAIT makes a bind fail on macOS.
+func isListening(port int) bool {
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		// Windows takes about 2 s to refuse a connect to a closed port.
+		connection, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 5*time.Second)
+		if err == nil {
+			_ = connection.Close()
+			return true
+		}
+	}
+	return false
 }
 
 // serveHTTP answers greeting on a free port of 127.0.0.1.
@@ -338,7 +352,7 @@ func requireEnv(t *testing.T, name string) string {
 
 func TestForwardsCarryTrafficAndEndWithTheOwner(t *testing.T) {
 	host := requireEnv(t, "LAZYFWD_E2E_HOST")
-	sshdPort := requireEnv(t, "LAZYFWD_E2E_SSHD_PORT")
+	sshdPort := os.Getenv("LAZYFWD_E2E_SSHD_PORT")
 	configForwardHost := requireEnv(t, "LAZYFWD_E2E_CONFIG_FORWARD_HOST")
 	deniedHost := requireEnv(t, "LAZYFWD_E2E_DENIED_HOST")
 	w := newWorld(t)
@@ -356,8 +370,8 @@ func TestForwardsCarryTrafficAndEndWithTheOwner(t *testing.T) {
 	assertGreets(t, localPort)
 	w.mustLazyfwd("forward", "stop", local)
 	eventually(t, "stopped local forward", func() string {
-		if !tunnel.IsLocalPortFree(localPort) {
-			return fmt.Sprintf("port %d still bound", localPort)
+		if isListening(localPort) {
+			return fmt.Sprintf("port %d still listens", localPort)
 		}
 		return ""
 	})
@@ -370,8 +384,8 @@ func TestForwardsCarryTrafficAndEndWithTheOwner(t *testing.T) {
 		if _, err := get(&http.Client{Timeout: 2 * time.Second}, fmt.Sprintf("http://127.0.0.1:%d/", editedPort)); err != nil {
 			return err.Error()
 		}
-		if !tunnel.IsLocalPortFree(localPort) {
-			return fmt.Sprintf("old port %d still bound", localPort)
+		if isListening(localPort) {
+			return fmt.Sprintf("old port %d still listens", localPort)
 		}
 		return ""
 	})
@@ -411,7 +425,7 @@ func TestForwardsCarryTrafficAndEndWithTheOwner(t *testing.T) {
 	if err := json.Unmarshal([]byte(output), &listing); err != nil {
 		t.Fatalf("port list printed %q: %v", output, err)
 	}
-	if !slices.ContainsFunc(listing.Ports, func(p listedPort) bool { return strconv.Itoa(p.Port) == sshdPort }) {
+	if sshdPort != "" && !slices.ContainsFunc(listing.Ports, func(p listedPort) bool { return strconv.Itoa(p.Port) == sshdPort }) {
 		t.Errorf("port list %s misses sshd's port %s:\n%s", host, sshdPort, output)
 	}
 
@@ -435,8 +449,8 @@ func TestForwardsCarryTrafficAndEndWithTheOwner(t *testing.T) {
 	if !isWindows && r.code != 0 {
 		t.Errorf("host whose config forwards ports: exit %d, %q", r.code, r.stderr)
 	}
-	if !tunnel.IsLocalPortFree(configPort) {
-		t.Errorf("the config's LocalForward port %d is bound", configPort)
+	if isListening(configPort) {
+		t.Errorf("the config's LocalForward port %d listens", configPort)
 	}
 
 	w.mustLazyfwd("host", "add", deniedHost)

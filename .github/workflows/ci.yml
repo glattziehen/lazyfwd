@@ -90,7 +90,9 @@ jobs:
       - run: go test ./...
         env:
           LAZYFWD_E2E_HOST: lazyfwd-e2e
-          LAZYFWD_E2E_SSHD_PORT: "2222"
+          # WSL 1 lists no listening sockets, so on Windows the port list only
+          # has to succeed.
+          LAZYFWD_E2E_SSHD_PORT: ${{ runner.os != 'Windows' && '2222' || '' }}
           LAZYFWD_E2E_CONFIG_FORWARD_HOST: lazyfwd-e2e-forwarding
           LAZYFWD_E2E_DENIED_HOST: lazyfwd-e2e-denied
 
