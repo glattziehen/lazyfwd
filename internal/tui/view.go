@@ -17,19 +17,20 @@ const (
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
-// colour has one meaning across the whole UI.
+// colour has one meaning across the whole UI. Muted text (stopped forwards,
+// hints, unfocused borders) is faint rather than ANSI 8 ("bright black"),
+// which some themes, such as Solarized Dark, map to the background colour.
 var (
 	colorFocus   = lipgloss.Color("6") // focused panel, cursor, and form field
 	colorRunning = lipgloss.Color("2")
 	colorFailed  = lipgloss.Color("1")
-	colorMuted   = lipgloss.Color("8") // stopped forwards, hints, unfocused borders
 	colorLink    = lipgloss.Color("4") // clickable laptop ends
 	colorPin     = lipgloss.Color("3")
 
 	styleFocus   = lipgloss.NewStyle().Foreground(colorFocus)
 	styleRunning = lipgloss.NewStyle().Foreground(colorRunning)
 	styleFailed  = lipgloss.NewStyle().Foreground(colorFailed)
-	styleMuted   = lipgloss.NewStyle().Foreground(colorMuted)
+	styleMuted   = lipgloss.NewStyle().Faint(true)
 	styleLink    = lipgloss.NewStyle().Foreground(colorLink)
 	stylePin     = lipgloss.NewStyle().Foreground(colorPin)
 	styleBold    = lipgloss.NewStyle().Bold(true)
