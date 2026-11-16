@@ -1,0 +1,31 @@
+{
+  "manual_hosts": [
+    "box"
+  ],
+  "pinned_hosts": [
+    "box"
+  ],
+  "forwards": [
+    {
+      "id": 1,
+      "host": "box",
+      "direction": "local",
+      "bind_port": 4966,
+      "target": {
+        "host": "localhost",
+        "port": 4966
+      }
+    },
+    {
+      "id": 2,
+      "host": "box",
+      "direction": "remote",
+      "bind_port": 3000,
+      "target": {
+        "host": "localhost",
+        "port": 3000
+      }
+    }
+  ],
+  "next_id": 2
+}

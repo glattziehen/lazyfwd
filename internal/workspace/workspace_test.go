@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -11,30 +12,30 @@ func allFree(int) bool { return true }
 
 func TestAddForwardsAvoidsPortsHeldByOtherForwards(t *testing.T) {
 	var ws Workspace
-	if _, err := ws.AddForwards("box-a", Local, []Addr{{"localhost", 4966}}, 0, allFree); err != nil {
+	if _, err := ws.AddForwards("box-a", Local, []End{{Host: "localhost", Port: 4966}}, End{}, allFree); err != nil {
 		t.Fatal(err)
 	}
-	added, err := ws.AddForwards("box-b", Local, []Addr{{"localhost", 4966}, {"localhost", 4967}}, 0, allFree)
+	added, err := ws.AddForwards("box-b", Local, []End{{Host: "localhost", Port: 4966}, {Host: "localhost", Port: 4967}}, End{}, allFree)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := []int{added[0].BindPort, added[1].BindPort}; !slices.Equal(got, []int{4965, 4967}) {
+	if got := []int{added[0].Bind.Port, added[1].Bind.Port}; !slices.Equal(got, []int{4965, 4967}) {
 		t.Fatalf("bind ports = %v", got)
 	}
 }
 
 func TestAddForwardsUsesManualBindPortEvenIfTaken(t *testing.T) {
 	var ws Workspace
-	added, err := ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 9000, func(int) bool { return false })
-	if err != nil || added[0].BindPort != 9000 {
+	added, err := ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 4966}}, End{Host: BindHost, Port: 9000}, func(int) bool { return false })
+	if err != nil || added[0].Bind.Port != 9000 {
 		t.Fatalf("got %v, %v", added, err)
 	}
 }
 
 func TestAddForwardsBindsRemoteForwardOnTargetPort(t *testing.T) {
 	var ws Workspace
-	added, err := ws.AddForwards("box", Remote, []Addr{{"localhost", 3000}}, 0, func(int) bool { return false })
-	if err != nil || added[0].BindPort != 3000 {
+	added, err := ws.AddForwards("box", Remote, []End{{Host: "localhost", Port: 3000}}, End{}, func(int) bool { return false })
+	if err != nil || added[0].Bind.Port != 3000 {
 		t.Fatalf("got %v, %v", added, err)
 	}
 	if got := added[0].SSHArgs(); !slices.Contains(got, "-R") || !slices.Contains(got, "3000:localhost:3000") {
@@ -42,11 +43,32 @@ func TestAddForwardsBindsRemoteForwardOnTargetPort(t *testing.T) {
 	}
 }
 
+func TestAddForwardsNeedsListeningEndForSocketTarget(t *testing.T) {
+	for direction, side := range map[Direction]string{Local: "local", Remote: "remote"} {
+		var ws Workspace
+		_, err := ws.AddForwards("box", direction, []End{{Path: "/var/run/docker.sock"}}, End{}, allFree)
+		if err == nil || !strings.Contains(err.Error(), "set the "+side+" end") {
+			t.Errorf("%s: got %v", direction, err)
+		}
+	}
+}
+
+func TestSocketBindsHoldNoLocalPort(t *testing.T) {
+	var ws Workspace
+	_, _ = ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 8080}}, End{Path: "/tmp/app.sock"}, allFree)
+
+	added, err := ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 8080}}, End{}, allFree)
+
+	if err != nil || added[0].Bind != (End{Host: BindHost, Port: 8080}) {
+		t.Fatalf("got %v, %v", added, err)
+	}
+}
+
 func TestUpdateForwardKeepsOwnPort(t *testing.T) {
 	var ws Workspace
-	added, _ := ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 0, allFree)
-	updated, err := ws.UpdateForward(added[0].ID, Addr{"localhost", 4966}, 0, allFree)
-	if err != nil || updated.BindPort != 4966 {
+	added, _ := ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 4966}}, End{}, allFree)
+	updated, err := ws.UpdateForward(added[0].ID, End{Host: "localhost", Port: 4966}, End{}, allFree)
+	if err != nil || updated.Bind.Port != 4966 {
 		t.Fatalf("got %v, %v", updated, err)
 	}
 }
@@ -67,7 +89,7 @@ func TestHostsListsPinnedFirstThenByName(t *testing.T) {
 func TestRemoveHostKeepsItsForwards(t *testing.T) {
 	var ws Workspace
 	_ = ws.AddHost("box")
-	_, _ = ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 0, allFree)
+	_, _ = ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 4966}}, End{}, allFree)
 	ws.RemoveHost("box")
 	if hosts := ws.Hosts(nil); len(hosts) != 1 || hosts[0].IsManual || len(ws.ForwardsOf("box")) != 1 {
 		t.Fatalf("hosts = %v, forwards = %v", hosts, ws.Forwards)
@@ -78,7 +100,7 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	store := FileStore{Path: filepath.Join(t.TempDir(), "lazyfwd", "workspace.json")}
 	var ws Workspace
 	_ = ws.AddHost("box")
-	_, _ = ws.AddForwards("box", Remote, []Addr{{"localhost", 3000}}, 0, allFree)
+	_, _ = ws.AddForwards("box", Remote, []End{{Host: "localhost", Port: 3000}}, End{}, allFree)
 	if err := store.Save(ws); err != nil {
 		t.Fatal(err)
 	}

@@ -108,40 +108,41 @@ func (w Workspace) ForwardsOf(host string) []Forward {
 	return forwards
 }
 
-// AddForwards adds one forward per target through host. A bindPort of 0 picks
-// one automatically: for Local, the target port if free on the laptop, else
-// the nearest free port; for Remote, the target port. isFree reports whether
-// a laptop port is free right now.
-func (w *Workspace) AddForwards(host string, direction Direction, targets []Addr, bindPort int, isFree func(int) bool) ([]Forward, error) {
-	if bindPort != 0 && len(targets) > 1 {
-		return nil, fmt.Errorf("set a bind port only for a single target, got %d targets", len(targets))
+// AddForwards adds one forward per target through host. A zero bind picks
+// a TCP port automatically: for Local, the target port if free on the local
+// machine, else the nearest free port; for Remote, the target port. A socket
+// target has no port to pick from, so it needs a bind. isFree reports whether
+// a local port is free right now.
+func (w *Workspace) AddForwards(host string, direction Direction, targets []End, bind End, isFree func(int) bool) ([]Forward, error) {
+	if bind != (End{}) && len(targets) > 1 {
+		return nil, fmt.Errorf("set the listening end only for a single target, got %d targets", len(targets))
 	}
-	bindPorts, err := w.bindPorts(direction, targets, bindPort, isFree, 0)
+	binds, err := w.binds(direction, targets, bind, isFree, 0)
 	if err != nil {
 		return nil, err
 	}
 	added := make([]Forward, len(targets))
 	for i, target := range targets {
 		w.NextID++
-		added[i] = Forward{ID: w.NextID, Host: host, Direction: direction, BindPort: bindPorts[i], Target: target}
+		added[i] = Forward{ID: w.NextID, Host: host, Direction: direction, Bind: binds[i], Target: target}
 	}
 	w.Forwards = append(w.Forwards, added...)
 	return added, nil
 }
 
-// UpdateForward changes a forward's target and bind port, with the same
-// defaults as AddForwards.
-func (w *Workspace) UpdateForward(id ForwardID, target Addr, bindPort int, isFree func(int) bool) (Forward, error) {
+// UpdateForward changes a forward's target and bind, with the same defaults
+// as AddForwards.
+func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree func(int) bool) (Forward, error) {
 	i := slices.IndexFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
 	if i < 0 {
 		return Forward{}, ErrForwardNotFound
 	}
 	forward := w.Forwards[i]
-	bindPorts, err := w.bindPorts(forward.Direction, []Addr{target}, bindPort, isFree, id)
+	binds, err := w.binds(forward.Direction, []End{target}, bind, isFree, id)
 	if err != nil {
 		return Forward{}, err
 	}
-	forward.Target, forward.BindPort = target, bindPorts[0]
+	forward.Target, forward.Bind = target, binds[0]
 	w.Forwards[i] = forward
 	return forward, nil
 }
@@ -151,24 +152,44 @@ func (w *Workspace) DeleteForward(id ForwardID) {
 	w.Forwards = slices.DeleteFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
 }
 
-// bindPorts resolves the bind port of each target. Laptop ports held by other
-// forwards, running or not, count as taken, so starting them later cannot collide.
-func (w Workspace) bindPorts(direction Direction, targets []Addr, bindPort int, isFree func(int) bool, editedID ForwardID) ([]int, error) {
-	if bindPort != 0 {
-		return []int{bindPort}, nil
+// binds resolves the bind of each target. Local ports held by other forwards,
+// running or not, count as taken, so starting them later cannot collide.
+func (w Workspace) binds(direction Direction, targets []End, bind End, isFree func(int) bool, editedID ForwardID) ([]End, error) {
+	if bind != (End{}) {
+		return []End{bind}, nil
 	}
 	wanted := make([]int, len(targets))
 	for i, target := range targets {
+		if target.IsSocket() {
+			return nil, fmt.Errorf("target %s is a socket, so there is no port to copy: set the %s end", target, listeningSide(direction))
+		}
 		wanted[i] = target.Port
 	}
-	if direction == Remote {
-		return wanted, nil
-	}
-	isHeld := map[int]bool{}
-	for _, forward := range w.Forwards {
-		if forward.Direction == Local && forward.ID != editedID {
-			isHeld[forward.BindPort] = true
+	ports := wanted
+	if direction == Local {
+		isHeld := map[int]bool{}
+		for _, forward := range w.Forwards {
+			if forward.Direction == Local && !forward.Bind.IsSocket() && forward.ID != editedID {
+				isHeld[forward.Bind.Port] = true
+			}
+		}
+		var err error
+		ports, err = AssignPorts(wanted, func(port int) bool { return !isHeld[port] && isFree(port) })
+		if err != nil {
+			return nil, err
 		}
 	}
-	return AssignPorts(wanted, func(port int) bool { return !isHeld[port] && isFree(port) })
+	binds := make([]End, len(ports))
+	for i, port := range ports {
+		binds[i] = End{Host: BindHost, Port: port}
+	}
+	return binds, nil
+}
+
+// listeningSide names the end that listens, as the forms label it.
+func listeningSide(direction Direction) string {
+	if direction == Remote {
+		return "remote"
+	}
+	return "local"
 }

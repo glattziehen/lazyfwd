@@ -20,8 +20,8 @@ func newLiveModel(t *testing.T, failed ...workspace.ForwardID) Model {
 	t.Helper()
 	var ws workspace.Workspace
 	for _, host := range []string{"a", "a", "b"} {
-		target := workspace.Addr{Host: "localhost", Port: 8000 + len(ws.Forwards)}
-		if _, err := ws.AddForwards(host, workspace.Local, []workspace.Addr{target}, 9000+len(ws.Forwards), func(int) bool { return true }); err != nil {
+		target := workspace.End{Host: "localhost", Port: 8000 + len(ws.Forwards)}
+		if _, err := ws.AddForwards(host, workspace.Local, []workspace.End{target}, workspace.End{Host: workspace.BindHost, Port: 9000 + len(ws.Forwards)}, func(int) bool { return true }); err != nil {
 			t.Fatal(err)
 		}
 	}

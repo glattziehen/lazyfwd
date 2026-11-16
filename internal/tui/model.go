@@ -346,9 +346,13 @@ func (m *Model) actOnForward(key string, forward workspace.Forward) {
 		m.save()
 		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
-		url, isWeb := forward.LaptopURL()
+		url, isWeb := forward.LocalURL()
+		if forward.LocalEnd().IsSocket() {
+			m.message = fmt.Sprintf("%s is a unix socket, which a browser cannot open; connect with its client", forward.LocalEnd())
+			return
+		}
 		if !isWeb {
-			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LaptopAddr())
+			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LocalEnd())
 			return
 		}
 		if err := browser.Open(url); err != nil {
@@ -375,8 +379,8 @@ func (m *Model) updateListenerKey(key string) {
 			m.toggle(forward)
 			return
 		}
-		target := workspace.Addr{Host: workspace.DefaultTargetHost, Port: listener.Port}
-		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.Addr{target}, 0, tunnel.IsLaptopPortFree)
+		target := workspace.End{Host: workspace.DefaultTargetHost, Port: listener.Port}
+		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, workspace.End{}, tunnel.IsLocalPortFree)
 		if err != nil {
 			m.message = err.Error()
 			return
@@ -389,7 +393,7 @@ func (m *Model) updateListenerKey(key string) {
 // forwardTo finds the selected host's local forward to localhost:port.
 func (m Model) forwardTo(port int) (workspace.Forward, bool) {
 	for _, forward := range m.forwards() {
-		if forward.Direction == workspace.Local && forward.Target == (workspace.Addr{Host: workspace.DefaultTargetHost, Port: port}) {
+		if forward.Direction == workspace.Local && forward.Target == (workspace.End{Host: workspace.DefaultTargetHost, Port: port}) {
 			return forward, true
 		}
 	}
@@ -445,11 +449,11 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		bindPort, err := workspace.ParsePort(f.value(1))
+		bind, err := workspace.ParseBind(f.value(1))
 		if err != nil {
 			return err
 		}
-		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bindPort, tunnel.IsLaptopPortFree)
+		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bind, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}
@@ -468,15 +472,15 @@ func (m *Model) submit() error {
 		if len(targets) != 1 {
 			return fmt.Errorf("a forward has one target, got %d", len(targets))
 		}
-		bindPort, err := workspace.ParsePort(f.value(1))
+		bind, err := workspace.ParseBind(f.value(1))
 		if err != nil {
 			return err
 		}
-		// Stop first so the forward's own laptop port counts as free again.
+		// Stop first so the forward's own local port counts as free again.
 		wasRunning := m.supervisor.IsRunning(f.forwardID)
 		m.supervisor.Stop(f.forwardID)
 		delete(m.failures, f.forwardID)
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bindPort, tunnel.IsLaptopPortFree)
+		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}

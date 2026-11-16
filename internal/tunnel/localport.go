@@ -8,11 +8,11 @@ import (
 	"syscall"
 )
 
-// IsLaptopPortFree reports whether a TCP port on the laptop's loopback can be
+// IsLocalPortFree reports whether a TCP port on the local loopback can be
 // bound without sharing it with another listener, including one on the
 // wildcard address. ssh binds "localhost" on IPv4 and IPv6, so both must be
 // free; a machine without IPv6 only needs IPv4.
-func IsLaptopPortFree(port int) bool {
+func IsLocalPortFree(port int) bool {
 	config := net.ListenConfig{Control: exclusiveBind}
 	portText := strconv.Itoa(port)
 	listener, err := config.Listen(context.Background(), "tcp4", net.JoinHostPort("127.0.0.1", portText))

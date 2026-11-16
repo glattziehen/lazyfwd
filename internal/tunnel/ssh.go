@@ -71,6 +71,26 @@ func remoteCommandArgs(socketPath, host, command string) []string {
 	}
 }
 
+// probeSocketArgs connect stdin and stdout to a unix socket on host through
+// the master. ssh exits 255 at once when nothing accepts on the path; a live
+// socket takes the connection.
+func probeSocketArgs(socketPath, host, remotePath string) []string {
+	return []string{
+		"-S", socketPath,
+		"-o", "ControlMaster=no",
+		"-o", "BatchMode=yes",
+		"-W", remotePath,
+		"--", host,
+	}
+}
+
+// removeSocketCommand removes path on a remote host if it is a socket. It
+// runs under sh, whatever the login shell; socket paths hold no characters
+// that need quoting.
+func removeSocketCommand(path string) string {
+	return "sh -c 'test -S " + path + " && rm -f " + path + "'"
+}
+
 func forwardArgs(socketPath string, forward workspace.Forward) []string {
 	return controlArgs(socketPath, "forward", forward.Host, forward.SSHArgs()...)
 }

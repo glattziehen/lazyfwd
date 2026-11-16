@@ -11,8 +11,13 @@ import (
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
 
-// masterCheckInterval is how often a connection looks for its master's death.
-const masterCheckInterval = 2 * time.Second
+const (
+	// masterCheckInterval is how often a connection looks for its master's death.
+	masterCheckInterval = 2 * time.Second
+	// socketProbeTimeout bounds the check whether a remote socket is live; a
+	// server that holds the probe's connection open counts as live.
+	socketProbeTimeout = 5 * time.Second
+)
 
 // ConnectError reports that a host's connection could not open.
 type ConnectError struct {
@@ -110,12 +115,39 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 	if !c.supervisor.isCurrent(forward.ID, generation) {
 		return
 	}
+	if forward.Direction == workspace.Local && forward.Bind.IsSocket() {
+		if err := freeLocalSocket(forward.Bind.Path); err != nil {
+			c.supervisor.fail(forward.ID, generation, err.Error(), false)
+			return
+		}
+	}
 	output, err := exec.Command("ssh", forwardArgs(c.socketPath, forward)...).CombinedOutput()
+	if err != nil && c.removeStaleRemoteSocket(ctx, forward) {
+		output, err = exec.Command("ssh", forwardArgs(c.socketPath, forward)...).CombinedOutput()
+	}
 	if err != nil {
 		c.supervisor.fail(forward.ID, generation, controlFailure(string(output)), false)
 		return
 	}
 	c.established[forward.ID] = established{forward: forward, generation: generation}
+}
+
+// removeStaleRemoteSocket removes a remote forward's socket path on the host
+// when nothing accepts on it. sshd leaves the socket file behind when a
+// forward stops and, unless the server sets StreamLocalBindUnlink, refuses to
+// bind over it. It reports whether it removed one.
+func (c *connection) removeStaleRemoteSocket(ctx context.Context, forward workspace.Forward) bool {
+	if forward.Direction != workspace.Remote || !forward.Bind.IsSocket() {
+		return false
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, socketProbeTimeout)
+	defer cancel()
+	err := exec.CommandContext(probeCtx, "ssh", probeSocketArgs(c.socketPath, c.host, forward.Bind.Path)...).Run()
+	if err == nil || probeCtx.Err() != nil {
+		return false
+	}
+	command := removeSocketCommand(forward.Bind.Path)
+	return exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, c.host, command)...).Run() == nil
 }
 
 // stop takes the forward off the master.
