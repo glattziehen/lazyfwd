@@ -1,25 +1,50 @@
-name: Release
-
+name: Publish
 on:
   push:
-    tags: ["v*"]
-
-permissions:
-  contents: write
+    tags:
+      - v*
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify release tag matches the changelog version
+        run: |
+          expected="v$(sed -n 's/^## \[\([0-9][0-9.]*\)\].*/\1/p' CHANGELOG.md | head -n 1)"
+          if [[ "$GITHUB_REF_NAME" != "$expected" ]]; then
+            echo "::error::Release tag $GITHUB_REF_NAME does not match changelog version $expected"
+            exit 1
+          fi
+
+  # Builds the binaries and their checksums and attaches them to the tag's release, with the tag's
+  # CHANGELOG.md section as the notes.
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # goreleaser needs the tags to find the previous release
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          # No build cache: a release compiles from scratch rather than from a cache a pull
+          # request's run may have written.
+          cache: false
+      # The tag's CHANGELOG.md section, which the release pull request generated.
+      - name: Write release notes
+        run: awk -v v="${GITHUB_REF_NAME#v}" '/^## \[/ { p = index($0, "## [" v "]") == 1; next } p' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           version: v2.20.2
-          args: release --clean
+          args: release --clean --release-notes ${{ runner.temp }}/notes.md
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

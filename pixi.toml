@@ -10,6 +10,7 @@ run = "go run ."
 
 [dependencies]
 go = ">=1.27.4,<2"
+git-cliff = ">=2,<3"
 
 [activation.env]
 # conda-forge's go expects a conda C compiler for cgo; lazyfwd needs no cgo.
