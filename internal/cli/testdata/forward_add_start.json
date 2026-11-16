@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "host": "box",
+    "direction": "local",
+    "local_end": "localhost:14966",
+    "remote_end": "localhost:4966",
+    "status": "running",
+    "reason": "",
+    "needs_login": false,
+    "url": "http://localhost:14966"
+  }
+]

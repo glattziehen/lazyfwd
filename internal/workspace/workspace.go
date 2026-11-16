@@ -72,9 +72,7 @@ func (w *Workspace) AddHost(name string) error {
 	if !slices.Contains(w.ManualHosts, name) {
 		w.ManualHosts = append(w.ManualHosts, name)
 	}
-	if !slices.Contains(w.PinnedHosts, name) {
-		w.PinnedHosts = append(w.PinnedHosts, name)
-	}
+	w.Pin(name)
 	return nil
 }
 
@@ -106,13 +104,16 @@ func (w Workspace) validate() error {
 	return nil
 }
 
-// TogglePin pins or unpins a host.
-func (w *Workspace) TogglePin(name string) {
-	if i := slices.Index(w.PinnedHosts, name); i >= 0 {
-		w.PinnedHosts = slices.Delete(w.PinnedHosts, i, i+1)
-		return
+// Pin pins a host; pinning a pinned host is a no-op.
+func (w *Workspace) Pin(name string) {
+	if !slices.Contains(w.PinnedHosts, name) {
+		w.PinnedHosts = append(w.PinnedHosts, name)
 	}
-	w.PinnedHosts = append(w.PinnedHosts, name)
+}
+
+// Unpin unpins a host; unpinning an unpinned host is a no-op.
+func (w *Workspace) Unpin(name string) {
+	w.PinnedHosts = slices.DeleteFunc(w.PinnedHosts, func(h string) bool { return h == name })
 }
 
 // RemoveHost forgets a host's manual entry and pin. The host stays listed
@@ -139,6 +140,9 @@ func (w Workspace) ForwardsOf(host string) []Forward {
 // target has no port to pick from, so it needs a bind. isFree reports whether
 // a local port is free right now.
 func (w *Workspace) AddForwards(host string, direction Direction, targets []End, bind End, isFree func(int) bool) ([]Forward, error) {
+	if err := validateHostName(host); err != nil {
+		return nil, err
+	}
 	if bind != (End{}) && len(targets) > 1 {
 		return nil, fmt.Errorf("set the listening end only for a single target, got %d targets", len(targets))
 	}
@@ -174,9 +178,9 @@ func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree fun
 
 // repairIDs gives every forward its own positive ID and moves NextID above
 // all of them. A hand-edited or merged file can lack next_id or repeat an ID,
-// which would let a new forward share an ID and one delete remove both. IDs
-// are internal and nothing else refers to them, so renumbering a repeat keeps
-// every forward and loses nothing.
+// which would let a new forward share an ID and one delete remove both.
+// Renumbering a repeat keeps every forward; the CLI addresses forwards by ID,
+// but no ID that two forwards share can address either reliably.
 func (w *Workspace) repairIDs() {
 	w.NextID = max(w.NextID, 0)
 	for _, forward := range w.Forwards {

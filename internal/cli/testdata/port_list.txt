@@ -1,0 +1,4 @@
+PORT  PROCESS  FORWARD
+4966  diffle   1
+8080  node
+1 more of other users, such as Docker: --all shows them

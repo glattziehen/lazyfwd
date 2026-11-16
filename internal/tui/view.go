@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/glattziehen/lazyfwd/internal/tunnel"
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
@@ -69,11 +70,12 @@ func (s forwardStatus) symbol() string {
 	return "○"
 }
 
+// status shows a starting forward as running, since its connect is under way.
 func (m Model) status(forward workspace.Forward) forwardStatus {
-	if m.supervisor.IsRunning(forward.ID) {
+	switch m.state.Status(forward.ID).State {
+	case tunnel.Starting, tunnel.Running:
 		return statusRunning
-	}
-	if _, ok := m.failures[forward.ID]; ok {
+	case tunnel.Failed:
 		return statusFailed
 	}
 	return statusStopped
@@ -192,7 +194,7 @@ func (m Model) hostLines() []string {
 		}
 		line := mark + host.Name
 		counts := map[forwardStatus]int{}
-		for _, forward := range m.workspace.ForwardsOf(host.Name) {
+		for _, forward := range m.state.ForwardsOf(host.Name) {
 			counts[m.status(forward)]++
 		}
 		// "nuc ● 2  ✗ 1": two spaces keep the counts apart as groups.
@@ -339,8 +341,8 @@ func (m Model) modal(title string, lines []string, height int) string {
 func (m Model) footer() string {
 	var lines []string
 	if forward, ok := m.focusedForward(); ok && m.form == nil && m.quitDialog == nil {
-		if reason, failed := m.failures[forward.ID]; failed {
-			lines = append(lines, styleFailed.Render("✗ "+reason))
+		if status := m.state.Status(forward.ID); status.State == tunnel.Failed {
+			lines = append(lines, styleFailed.Render("✗ "+status.Reason))
 		} else {
 			lines = append(lines, styleMuted.Render("$ ssh -N "+strings.Join(forward.SSHArgs(), " ")+" -- "+forward.Host))
 		}

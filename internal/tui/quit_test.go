@@ -22,11 +22,10 @@ func isQuit(msg tea.Msg) bool {
 	return ok
 }
 
-// runningModel has forwards 1 and 2 running on a host whose ssh never
-// connects, so they stay running without a network.
+// runningModel has forwards 1 and 2 started on fake tunnels, where they
+// stay starting, which the TUI shows as running.
 func runningModel(t *testing.T) Model {
 	t.Helper()
-	hangingSSH(t)
 	m := newLiveModel(t)
 	m = send(m, keyMsg("2"))
 	m = send(m, keyMsg(" "))
@@ -76,7 +75,7 @@ func TestQuitDialogCancelKeepsForwardsRunning(t *testing.T) {
 		if isQuit(msg) || m.quitDialog != nil {
 			t.Errorf("%s: quit %v, dialog open %v", name, isQuit(msg), m.quitDialog != nil)
 		}
-		if !m.supervisor.IsRunning(1) || !m.supervisor.IsRunning(2) {
+		if !m.state.Status(1).IsActive() || !m.state.Status(2).IsActive() {
 			t.Errorf("%s: a forward stopped", name)
 		}
 	}

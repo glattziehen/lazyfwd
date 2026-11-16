@@ -13,7 +13,7 @@ import (
 // Docker's published ports belong to root's docker-proxy, so the default
 // filter hides them; the panel must say how to see them.
 func TestListeningPanelNamesPortsHiddenByYoursFilter(t *testing.T) {
-	m := New(discardStore{}, newTestSupervisor(t), workspace.Workspace{}, []string{"box"})
+	m, _ := newTestModel(t, workspace.Workspace{}, []string{"box"})
 	m = send(m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	found := []listeners.Listener{{Port: 3000, Process: "node"}, {Port: 5432}, {Port: 8080}}
 	m = send(m, listenersMsg{host: "box", result: listenerResult{listeners: found}})
@@ -31,7 +31,7 @@ func newListeningModel(t *testing.T) Model {
 	if _, err := ws.AddForwards("box", workspace.Local, []workspace.End{target}, workspace.End{}, func(int) bool { return true }); err != nil {
 		t.Fatal(err)
 	}
-	m := New(discardStore{}, newTestSupervisor(t), ws, nil)
+	m, _ := newTestModel(t, ws, nil)
 	found := []listeners.Listener{{Port: 5432, Process: "postgres"}, {Port: 8080, Process: "node"}}
 	m = send(m, listenersMsg{host: "box", result: listenerResult{listeners: found}})
 	return send(m, keyMsg("3"))
@@ -49,8 +49,8 @@ func TestListeningOpenUsesThePortsForward(t *testing.T) {
 func TestListeningOpenOnUnforwardedPortAsksToForwardFirst(t *testing.T) {
 	m := newListeningModel(t)
 	m = send(send(m, keyMsg("j")), keyMsg("o"))
-	if m.message != "port 8080 has no forward yet; press enter to forward it" || len(m.workspace.Forwards) != 1 {
-		t.Fatalf("message = %q, forwards = %d", m.message, len(m.workspace.Forwards))
+	if m.message != "port 8080 has no forward yet; press enter to forward it" || len(m.state.Forwards) != 1 {
+		t.Fatalf("message = %q, forwards = %d", m.message, len(m.state.Forwards))
 	}
 }
 
@@ -64,7 +64,7 @@ func TestEscFocusesHostsWithoutFetching(t *testing.T) {
 
 // With only the user's own ports known, "all" would silently equal "yours".
 func TestListeningPanelSaysWhenHostHidesOtherUsersPorts(t *testing.T) {
-	m := New(discardStore{}, newTestSupervisor(t), workspace.Workspace{}, []string{"box"})
+	m, _ := newTestModel(t, workspace.Workspace{}, []string{"box"})
 	m = send(m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	found := []listeners.Listener{{Port: 3000, Process: "node"}}
 	m = send(m, listenersMsg{host: "box", result: listenerResult{listeners: found, isOwnOnly: true}})
