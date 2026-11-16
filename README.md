@@ -45,7 +45,7 @@ lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.j
 | `q` | any | Stop all forwards and quit |
 | `a` | Hosts | Add a host (any ssh destination, e.g. `user@box`) |
 | `p` | Hosts | Pin or unpin the host |
-| `d` | Hosts | Remove an added host and its forwards |
+| `d` | Hosts | Remove an added host that has no forwards |
 | `enter` | Hosts | Open the host's forwards |
 | `a` | Forwards, Listening | Add a local forward |
 | `space` | Forwards | Start or stop the forward |

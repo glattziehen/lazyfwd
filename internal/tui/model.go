@@ -184,12 +184,14 @@ func (m *Model) updateHostKey(key string) tea.Cmd {
 		m.save()
 		m.selectHost(host.Name)
 	case "d":
-		if !host.IsManual && len(m.workspace.ForwardsOf(host.Name)) == 0 {
-			m.message = host.Name + " comes from ~/.ssh/config; edit that file to remove it"
+		// Refuse rather than cascade, so no single key deletes more than one forward.
+		if count := len(m.workspace.ForwardsOf(host.Name)); count > 0 {
+			m.message = fmt.Sprintf("delete the forwards of %s first (%d left)", host.Name, count)
 			return nil
 		}
-		for _, forward := range m.workspace.ForwardsOf(host.Name) {
-			m.supervisor.Stop(forward.ID)
+		if !host.IsManual {
+			m.message = host.Name + " comes from ~/.ssh/config; edit that file to remove it"
+			return nil
 		}
 		m.workspace.RemoveHost(host.Name)
 		m.save()

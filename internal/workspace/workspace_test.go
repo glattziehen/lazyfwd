@@ -64,13 +64,13 @@ func TestHostsListsPinnedFirstThenByName(t *testing.T) {
 	}
 }
 
-func TestRemoveHostDropsItsForwards(t *testing.T) {
+func TestRemoveHostKeepsItsForwards(t *testing.T) {
 	var ws Workspace
 	_ = ws.AddHost("box")
 	_, _ = ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 0, allFree)
 	ws.RemoveHost("box")
-	if hosts := ws.Hosts(nil); len(hosts) != 0 {
-		t.Fatalf("hosts = %v", hosts)
+	if hosts := ws.Hosts(nil); len(hosts) != 1 || hosts[0].IsManual || len(ws.ForwardsOf("box")) != 1 {
+		t.Fatalf("hosts = %v, forwards = %v", hosts, ws.Forwards)
 	}
 }
 

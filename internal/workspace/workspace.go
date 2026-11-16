@@ -87,12 +87,11 @@ func (w *Workspace) TogglePin(name string) {
 	w.PinnedHosts = append(w.PinnedHosts, name)
 }
 
-// RemoveHost forgets a host: its manual entry, its pin, and its forwards.
-// Hosts from the ssh config stay listed, since lazyfwd never edits that file.
+// RemoveHost forgets a host's manual entry and pin. The host stays listed
+// while it has forwards or appears in the ssh config, which lazyfwd never edits.
 func (w *Workspace) RemoveHost(name string) {
 	w.ManualHosts = slices.DeleteFunc(w.ManualHosts, func(h string) bool { return h == name })
 	w.PinnedHosts = slices.DeleteFunc(w.PinnedHosts, func(h string) bool { return h == name })
-	w.Forwards = slices.DeleteFunc(w.Forwards, func(f Forward) bool { return f.Host == name })
 }
 
 // ForwardsOf lists the forwards through one host in creation order.
