@@ -72,6 +72,7 @@ func (f Forward) SSHArgs() []string {
 		"-N",
 		"-o", "ExitOnForwardFailure=yes",
 		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=10",
 		"-o", "ServerAliveInterval=15",
 		"-o", "ServerAliveCountMax=3",
 		flag, spec,
