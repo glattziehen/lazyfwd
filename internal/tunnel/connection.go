@@ -18,33 +18,8 @@ import (
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
-const (
-	// masterCheckInterval is how often a connection looks for its master's death.
-	masterCheckInterval = 2 * time.Second
-	// probeTimeout bounds the check whether something listens on the host.
-	probeTimeout = 5 * time.Second
-	// masterOpenTimeout bounds opening a master without prompts. ssh's
-	// ConnectTimeout stops counting once the server sends its banner, so a
-	// server that stalls after that would hang the connect for good.
-	masterOpenTimeout = 20 * time.Second
-	// controlTimeout bounds a control command to the master.
-	controlTimeout = 10 * time.Second
-)
-
-// ConnectError reports that a host's connection could not open.
-type ConnectError struct {
-	Host string
-	// Reason is the last line of ssh's log, or ssh's exit error.
-	Reason string
-	// Log is everything ssh logged.
-	Log string
-	// NeedsLogin is set when an interactive login would get further.
-	NeedsLogin bool
-}
-
-func (e *ConnectError) Error() string {
-	return e.Reason
-}
+// masterCheckInterval is how often a connection looks for its master's death.
+const masterCheckInterval = 2 * time.Second
 
 // established is a forward that the master holds.
 type established struct {
@@ -373,4 +348,16 @@ func (c *connection) closeMaster() {
 	}
 	c.masterPID = 0
 	clear(c.established)
+}
+
+// isCurrent reports whether the forward still runs as generation.
+func (s *Supervisor) isCurrent(id workspace.ForwardID, generation uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.running[id].generation == generation
+}
+
+func lastLine(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }

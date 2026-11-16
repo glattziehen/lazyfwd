@@ -3,6 +3,7 @@
 package tunnel
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -59,3 +60,22 @@ func (l *Login) Run() error {
 func (l *Login) SetStdin(r io.Reader)  { l.cmd.Stdin = r }
 func (l *Login) SetStdout(w io.Writer) { l.cmd.Stdout = w }
 func (l *Login) SetStderr(w io.Writer) { l.cmd.Stderr = w }
+
+// checkMaster asks the master on socketPath for its process ID.
+func checkMaster(socketPath, host string) (int, bool) {
+	if _, err := os.Stat(socketPath); err != nil {
+		return 0, false
+	}
+	output, _ := runControl(context.Background(), controlArgs(socketPath, "check", host))
+	return masterPID(string(output))
+}
+
+// connectError explains a failed master from its log.
+func connectError(host, logPath string, err error) *ConnectError {
+	log, _ := os.ReadFile(logPath)
+	reason := lastLine(string(log))
+	if reason == "" {
+		reason = err.Error()
+	}
+	return &ConnectError{Host: host, Reason: reason, Log: string(log), NeedsLogin: needsLogin(string(log))}
+}

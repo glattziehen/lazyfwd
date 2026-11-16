@@ -5,9 +5,36 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
+
+const (
+	// probeTimeout bounds the check whether something listens on the host.
+	probeTimeout = 5 * time.Second
+	// masterOpenTimeout bounds opening a master without prompts. ssh's
+	// ConnectTimeout stops counting once the server sends its banner, so a
+	// server that stalls after that would hang the connect for good.
+	masterOpenTimeout = 20 * time.Second
+	// controlTimeout bounds a control command to the master.
+	controlTimeout = 10 * time.Second
+)
+
+// ConnectError reports that a host's connection could not open.
+type ConnectError struct {
+	Host string
+	// Reason is the last line of ssh's log, or ssh's exit error.
+	Reason string
+	// Log is everything ssh logged.
+	Log string
+	// NeedsLogin is set when an interactive login would get further.
+	NeedsLogin bool
+}
+
+func (e *ConnectError) Error() string {
+	return e.Reason
+}
 
 // State is where a forward stands.
 type State string
@@ -211,13 +238,6 @@ func (s *Supervisor) connection(host string) *connection {
 		s.connections[host] = c
 	}
 	return c
-}
-
-// isCurrent reports whether the forward still runs as generation.
-func (s *Supervisor) isCurrent(id workspace.ForwardID, generation uint64) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.running[id].generation == generation
 }
 
 // establish marks the forward's run as generation as held by the master,
