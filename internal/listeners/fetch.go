@@ -1,7 +1,6 @@
 package listeners
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -39,32 +38,30 @@ var listCommand = "sh -c '" + strings.Join([]string{
 	"esac",
 }, " ") + "'"
 
-// Fetch lists the ports listening on host with one ssh command.
-func Fetch(host string) ([]Listener, error) {
+// Runner runs command on host over ssh. It returns the command's stdout even
+// when it fails, and an *exec.ExitError when the command ran and exited
+// non-zero; any other error means ssh could not run it.
+type Runner func(ctx context.Context, host, command string) (string, error)
+
+// Fetch lists the ports listening on host with one remote command.
+func Fetch(run Runner, host string) ([]Listener, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, listCommand)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	runErr := cmd.Run()
+	stdout, runErr := run(ctx, host, listCommand)
 	if ctx.Err() != nil {
 		return nil, fmt.Errorf("listing ports on %s timed out after %s", host, fetchTimeout)
 	}
 	// The script's output decides, whatever its exit status: a missing
 	// /proc/net/tcp6, for one, fails cat after the ports are printed.
-	found, parseErr := Parse(stdout.String())
+	found, parseErr := Parse(stdout)
 	if parseErr == nil {
 		return found, nil
 	}
-	// ssh exits 255 for its own errors, such as a refused login; any other
-	// failure without the script's output means the host has no sh to run it.
+	// A command that ran but printed no script output means the host has no
+	// sh to run it; any other failure is ssh's.
 	var exitErr *exec.ExitError
-	if runErr != nil && !(errors.As(runErr, &exitErr) && exitErr.ExitCode() != 255) {
-		reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
-		if reason == "" {
-			reason = runErr.Error()
-		}
-		return nil, fmt.Errorf("listing ports on %s failed: %s", host, strings.TrimSpace(reason))
+	if runErr != nil && !errors.As(runErr, &exitErr) {
+		return nil, fmt.Errorf("listing ports on %s failed: %w", host, runErr)
 	}
 	return nil, fmt.Errorf("cannot list ports on %s: %w", host, parseErr)
 }

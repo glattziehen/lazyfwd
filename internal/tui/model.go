@@ -2,6 +2,7 @@
 package tui
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 
@@ -43,6 +44,12 @@ type listenersMsg struct {
 	result listenerResult
 }
 
+// loginMsg reports that an interactive login to host ended.
+type loginMsg struct {
+	host string
+	err  error
+}
+
 // Model is the bubbletea model. Forward status derives from the supervisor
 // (running) and failures (last ssh error since the forward last started).
 type Model struct {
@@ -64,10 +71,13 @@ type Model struct {
 	listenerIndex         int
 	isShowingAllListeners bool
 	isShowingHelp         bool
-	form                  *form
-	message               string
-	width                 int
-	height                int
+	// loginHosts queues hosts that need an interactive login; the first one's
+	// login holds the terminal.
+	loginHosts []string
+	form       *form
+	message    string
+	width      int
+	height     int
 }
 
 func New(store Store, supervisor *tunnel.Supervisor, ws workspace.Workspace, sshConfigHosts []string) Model {
@@ -106,11 +116,21 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, nil
 	case exitedMsg:
 		m.failures[msg.ID] = msg.Reason
-		return m, m.waitForExit()
+		cmd := m.waitForExit()
+		if forward, ok := m.forward(msg.ID); ok && msg.NeedsLogin {
+			cmd = tea.Batch(cmd, m.queueLogin(forward.Host))
+		}
+		return m, cmd
 	case listenersMsg:
 		m.listenerResults[msg.host] = msg.result
 		m.listenerIndex = clamp(m.listenerIndex, len(m.visibleListeners()))
+		var connectErr *tunnel.ConnectError
+		if errors.As(msg.result.err, &connectErr) && connectErr.NeedsLogin {
+			return m, m.queueLogin(msg.host)
+		}
 		return m, nil
+	case loginMsg:
+		return m, m.finishLogin(msg)
 	case tea.KeyMsg:
 		if m.form != nil {
 			return m.updateForm(msg)
@@ -194,15 +214,62 @@ func (m *Model) focusPanel(target panel) tea.Cmd {
 }
 
 func (m *Model) fetchListeners() tea.Cmd {
-	host := m.selectedHost()
+	return m.fetchListenersOf(m.selectedHost())
+}
+
+func (m *Model) fetchListenersOf(host string) tea.Cmd {
 	if host == "" {
 		return nil
 	}
 	m.listenerResults[host] = listenerResult{isLoading: true}
+	run := m.supervisor.Run
 	return func() tea.Msg {
-		found, err := listeners.Fetch(host)
+		found, err := listeners.Fetch(run, host)
 		return listenersMsg{host: host, result: listenerResult{listeners: found, err: err}}
 	}
+}
+
+// queueLogin hands the terminal to an interactive ssh login to host, after
+// any login already running. Only a failed connect that a login could fix
+// queues one, and every connect follows a key press, so a login never
+// appears unasked.
+func (m *Model) queueLogin(host string) tea.Cmd {
+	if slices.Contains(m.loginHosts, host) {
+		return nil
+	}
+	m.loginHosts = append(m.loginHosts, host)
+	if len(m.loginHosts) > 1 {
+		return nil
+	}
+	return m.runLogin(host)
+}
+
+func (m *Model) runLogin(host string) tea.Cmd {
+	login := &loginCommand{Login: m.supervisor.Login(host)}
+	return tea.Exec(login, func(err error) tea.Msg { return loginMsg{host: host, err: err} })
+}
+
+// finishLogin retries what the login was for: the host's failed forwards and
+// its failed listening-ports fetch. Then it runs the next queued login.
+func (m *Model) finishLogin(msg loginMsg) tea.Cmd {
+	m.loginHosts = slices.DeleteFunc(m.loginHosts, func(h string) bool { return h == msg.host })
+	var cmds []tea.Cmd
+	if msg.err != nil {
+		m.message = "login to " + msg.host + " failed: " + msg.err.Error()
+	} else {
+		for _, forward := range m.workspace.ForwardsOf(msg.host) {
+			if _, failed := m.failures[forward.ID]; failed {
+				m.start(forward)
+			}
+		}
+		if m.listenerResults[msg.host].err != nil {
+			cmds = append(cmds, m.fetchListenersOf(msg.host))
+		}
+	}
+	if len(m.loginHosts) > 0 {
+		cmds = append(cmds, m.runLogin(m.loginHosts[0]))
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *Model) updateHostKey(key string) tea.Cmd {
@@ -434,9 +501,7 @@ func (m *Model) toggle(forward workspace.Forward) {
 
 func (m *Model) start(forward workspace.Forward) {
 	delete(m.failures, forward.ID)
-	if err := m.supervisor.Start(forward); err != nil {
-		m.failures[forward.ID] = err.Error()
-	}
+	m.supervisor.Start(forward)
 }
 
 func (m *Model) save() {
@@ -486,6 +551,15 @@ func (m Model) selectedHostEntry() (workspace.Host, bool) {
 func (m Model) selectedHost() string {
 	host, _ := m.selectedHostEntry()
 	return host.Name
+}
+
+// forward finds a forward of any host by ID.
+func (m Model) forward(id workspace.ForwardID) (workspace.Forward, bool) {
+	i := slices.IndexFunc(m.workspace.Forwards, func(f workspace.Forward) bool { return f.ID == id })
+	if i < 0 {
+		return workspace.Forward{}, false
+	}
+	return m.workspace.Forwards[i], true
 }
 
 func (m Model) selectedForward() (workspace.Forward, bool) {
