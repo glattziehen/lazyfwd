@@ -36,6 +36,7 @@ func newField(placeholder, value string) textinput.Model {
 	input.Prompt = ""
 	input.CharLimit = 256
 	input.Width = 40
+	input.PlaceholderStyle = styleMuted
 	return input
 }
 
@@ -51,11 +52,11 @@ func newHostForm() *form {
 func newForwardForm(direction workspace.Direction) *form {
 	f := &form{kind: formAddForward, direction: direction}
 	if direction == workspace.Local {
-		f.title = "Add local forward (-L): laptop port -> remote target"
+		f.title = "Add local forward (-L): laptop port → remote target"
 		f.labels = []string{"remote target(s)", "laptop port"}
 		f.inputs = []textinput.Model{newField("4966-4968, 8080, or db:5432", ""), newField("auto: target port or nearest free", "")}
 	} else {
-		f.title = "Add remote forward (-R): remote port -> laptop target"
+		f.title = "Add remote forward (-R): remote port → laptop target"
 		f.labels = []string{"laptop target(s)", "remote port"}
 		f.inputs = []textinput.Model{newField("3000 or host:3000", ""), newField("auto: same as target port", "")}
 	}
