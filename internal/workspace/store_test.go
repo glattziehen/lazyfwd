@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -137,5 +138,61 @@ func TestSaveWritesThroughSymlinkAndKeepsMode(t *testing.T) {
 	}
 	if loaded, err := (FileStore{Path: target}).Load(); err != nil || !slices.Equal(loaded.ManualHosts, []string{"box"}) {
 		t.Fatalf("target holds %+v, %v", loaded, err)
+	}
+}
+
+// A socket path reaches a remote shell, so a file holding one the forms would
+// refuse must not load: lazyfwd would rewrite the file without the forward,
+// so it refuses the whole file and names the entry.
+func TestLoadRefusesSocketPathTheFormsWouldRefuse(t *testing.T) {
+	path := filepath.Join("testdata", "workspace_injecting_socket_path.json")
+
+	_, err := FileStore{Path: path}.Load()
+
+	if err == nil {
+		t.Fatal("loaded a socket path that holds shell syntax")
+	}
+	for _, part := range []string{path, "forward 2", "box", "may hold only"} {
+		if !strings.Contains(err.Error(), part) {
+			t.Errorf("error %q does not name %q", err, part)
+		}
+	}
+}
+
+func TestLoadRefusesForwardsTheFormsCannotMake(t *testing.T) {
+	cases := map[string]string{
+		"unknown direction":    `{"id": 1, "host": "box", "direction": "sideways", "bind_port": 9000, "target": {"host": "localhost", "port": 80}}`,
+		"empty host":           `{"id": 1, "host": "", "direction": "local", "bind_port": 9000, "target": {"host": "localhost", "port": 80}}`,
+		"host with a space":    `{"id": 1, "host": "a b", "direction": "local", "bind_port": 9000, "target": {"host": "localhost", "port": 80}}`,
+		"port out of range":    `{"id": 1, "host": "box", "direction": "local", "bind_port": 70000, "target": {"host": "localhost", "port": 80}}`,
+		"no bind":              `{"id": 1, "host": "box", "direction": "local", "target": {"host": "localhost", "port": 80}}`,
+		"empty target host":    `{"id": 1, "host": "box", "direction": "local", "bind_port": 9000, "target": {"port": 80}}`,
+		"relative target path": `{"id": 1, "host": "box", "direction": "local", "bind_port": 9000, "target": {"path": "run/app.sock"}}`,
+	}
+	for name, forward := range cases {
+		path := filepath.Join(t.TempDir(), "workspace.json")
+		if err := os.WriteFile(path, []byte(`{"forwards": [`+forward+`]}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := (FileStore{Path: path}).Load(); err == nil {
+			t.Errorf("%s: loaded", name)
+		}
+	}
+}
+
+func TestLoadKeepsNewIDsPositive(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "workspace.json")
+	if err := os.WriteFile(path, []byte(`{"next_id": -5}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := FileStore{Path: path}.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	added, _ := ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 80}}, End{Host: BindHost, Port: 9000}, allFree)
+
+	if added[0].ID <= 0 {
+		t.Fatalf("new forward got id %d", added[0].ID)
 	}
 }

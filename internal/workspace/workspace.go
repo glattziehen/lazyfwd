@@ -66,17 +66,42 @@ func (w Workspace) Hosts(sshConfigHosts []string) []Host {
 // AddHost adds a manual host and pins it, since a host added by hand is one the user wants at hand.
 func (w *Workspace) AddHost(name string) error {
 	name = strings.TrimSpace(name)
-	if name == "" || strings.ContainsAny(name, " \t") {
-		return fmt.Errorf("host must be an ssh destination without spaces, got %q", name)
-	}
-	if strings.HasPrefix(name, "-") {
-		return fmt.Errorf("host must not start with -, which ssh reads as an option, got %q", name)
+	if err := validateHostName(name); err != nil {
+		return err
 	}
 	if !slices.Contains(w.ManualHosts, name) {
 		w.ManualHosts = append(w.ManualHosts, name)
 	}
 	if !slices.Contains(w.PinnedHosts, name) {
 		w.PinnedHosts = append(w.PinnedHosts, name)
+	}
+	return nil
+}
+
+func validateHostName(name string) error {
+	if name == "" || strings.ContainsAny(name, " \t") {
+		return fmt.Errorf("host must be an ssh destination without spaces, got %q", name)
+	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("host must not start with -, which ssh reads as an option, got %q", name)
+	}
+	return nil
+}
+
+// validate reports the first manual host or forward that the forms could not
+// have made. Values from workspace.json reach ssh and, for a remote socket
+// path, a remote shell, so a hand-edited or crafted file must meet the same
+// rules as typed input.
+func (w Workspace) validate() error {
+	for _, name := range w.ManualHosts {
+		if err := validateHostName(name); err != nil {
+			return fmt.Errorf("manual host: %w", err)
+		}
+	}
+	for _, forward := range w.Forwards {
+		if err := forward.validate(); err != nil {
+			return fmt.Errorf("forward %d on host %q: %w", forward.ID, forward.Host, err)
+		}
 	}
 	return nil
 }
@@ -153,6 +178,7 @@ func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree fun
 // are internal and nothing else refers to them, so renumbering a repeat keeps
 // every forward and loses nothing.
 func (w *Workspace) repairIDs() {
+	w.NextID = max(w.NextID, 0)
 	for _, forward := range w.Forwards {
 		w.NextID = max(w.NextID, forward.ID)
 	}
