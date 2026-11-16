@@ -67,6 +67,11 @@ func Connect(store workspace.FileStore, sshConfigHosts func() ([]string, error))
 	return &Client{local: owner.New(store, nil, ws, hosts), lock: lock}, nil
 }
 
+// HasOwner reports whether a lazyfwd runs to hold the connections.
+func (c *Client) HasOwner() bool {
+	return c.local == nil
+}
+
 // Call runs one operation. Its error is an *Error when the owner refused
 // or failed the operation; the Response may still hold results.
 func (c *Client) Call(request Request) (Response, error) {

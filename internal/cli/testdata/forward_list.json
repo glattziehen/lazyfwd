@@ -1,0 +1,35 @@
+[
+  {
+    "id": 1,
+    "host": "box",
+    "direction": "local",
+    "local_end": "localhost:14966",
+    "remote_end": "localhost:4966",
+    "status": "stopped",
+    "reason": "",
+    "needs_login": false,
+    "url": "http://localhost:14966"
+  },
+  {
+    "id": 2,
+    "host": "box",
+    "direction": "local",
+    "local_end": "/tmp/box-docker.sock",
+    "remote_end": "/var/run/docker.sock",
+    "status": "stopped",
+    "reason": "",
+    "needs_login": false,
+    "url": ""
+  },
+  {
+    "id": 3,
+    "host": "box",
+    "direction": "remote",
+    "local_end": "localhost:3000",
+    "remote_end": "localhost:3000",
+    "status": "stopped",
+    "reason": "",
+    "needs_login": false,
+    "url": "http://localhost:3000"
+  }
+]

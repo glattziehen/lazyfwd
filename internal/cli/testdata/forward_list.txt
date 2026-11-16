@@ -1,0 +1,4 @@
+ID  HOST  DIRECTION  LOCAL END             REMOTE END            STATUS  REASON
+1   box   local      localhost:14966       localhost:4966        stopped
+2   box   local      /tmp/box-docker.sock  /var/run/docker.sock  stopped
+3   box   remote     localhost:3000        localhost:3000        stopped

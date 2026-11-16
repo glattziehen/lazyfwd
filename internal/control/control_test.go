@@ -123,7 +123,7 @@ func TestCrashedOwnersAddressIsIgnored(t *testing.T) {
 
 	client := connect(t, store)
 
-	if client.local == nil {
+	if client.HasOwner() {
 		t.Fatal("client reached for the crashed owner")
 	}
 }

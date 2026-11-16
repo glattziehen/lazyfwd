@@ -48,3 +48,14 @@ func (s State) Status(id workspace.ForwardID) tunnel.Status {
 	}
 	return tunnel.Status{State: tunnel.Stopped}
 }
+
+// ListenerForward finds host's local forward to its listening port: the
+// forward to localhost:port.
+func (s State) ListenerForward(host string, port int) (workspace.Forward, bool) {
+	for _, forward := range s.ForwardsOf(host) {
+		if forward.Direction == workspace.Local && forward.Target == (workspace.End{Host: workspace.DefaultTargetHost, Port: port}) {
+			return forward, true
+		}
+	}
+	return workspace.Forward{}, false
+}

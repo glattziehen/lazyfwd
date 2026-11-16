@@ -435,12 +435,7 @@ func (m *Model) updateListenerKey(key string) {
 
 // forwardTo finds the selected host's local forward to localhost:port.
 func (m Model) forwardTo(port int) (workspace.Forward, bool) {
-	for _, forward := range m.forwards() {
-		if forward.Direction == workspace.Local && forward.Target == (workspace.End{Host: workspace.DefaultTargetHost, Port: port}) {
-			return forward, true
-		}
-	}
-	return workspace.Forward{}, false
+	return m.state.ListenerForward(m.selectedHost(), port)
 }
 
 // visibleListeners are the selected host's fetched listeners, by default only

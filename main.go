@@ -1,66 +1,15 @@
-// lazyfwd is a keyboard-first TUI for ssh port forwards.
+// lazyfwd manages ssh port forwards from a keyboard-first TUI or the command line.
 package main
 
 import (
-	"flag"
-	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/debug"
 
-	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/glattziehen/lazyfwd/internal/owner"
-	"github.com/glattziehen/lazyfwd/internal/sshconfig"
-	"github.com/glattziehen/lazyfwd/internal/tui"
-	"github.com/glattziehen/lazyfwd/internal/tunnel"
-	"github.com/glattziehen/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/cli"
 )
 
 func main() {
-	showVersion := flag.Bool("version", false, "print the version and exit")
-	flag.Parse()
-	if *showVersion {
-		fmt.Println("lazyfwd", version())
-		return
-	}
-	if err := run(); err != nil {
-		fmt.Fprintln(os.Stderr, "lazyfwd:", err)
-		os.Exit(1)
-	}
-}
-
-func run() error {
-	storePath, err := workspace.DefaultStorePath()
-	if err != nil {
-		return err
-	}
-	store := workspace.FileStore{Path: storePath}
-	lock, err := store.Lock()
-	if err != nil {
-		return err
-	}
-	defer lock.Release()
-	ws, err := store.Load()
-	if err != nil {
-		return err
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath)
-	if err != nil {
-		return err
-	}
-	supervisor, err := tunnel.NewSupervisor(tunnel.DefaultBaseDir())
-	if err != nil {
-		return err
-	}
-	o := owner.New(store, supervisor, ws, sshConfigHosts)
-	defer o.Close()
-	_, err = tea.NewProgram(tui.New(o), tea.WithAltScreen()).Run()
-	return err
+	os.Exit(cli.Main(os.Args[1:], version()))
 }
 
 // version is the main module version the go command stamps at build time:
