@@ -57,7 +57,7 @@ lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.j
 | `e` | Forwards | Edit the forward (restarts it if running) |
 | `d` | Forwards | Delete the forward |
 | `o` | Forwards | Open the laptop end in the browser |
-| `enter` | Listening | Forward this port to the laptop |
+| `space`, `enter`, `f` | Listening | Forward this port to the laptop, or start or stop its forward |
 | `t` | Listening | Show your ports or all ports |
 
 In forms, `tab` moves between fields, `enter` saves, and `esc` cancels.
