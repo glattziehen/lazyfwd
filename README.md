@@ -46,11 +46,31 @@ Run `lazyfwd`. The screen has four panels, numbered by their key:
 
 Colours come from your terminal's 16-colour palette, so your theme applies: green is running, red is failed, faint text is stopped or a hint, cyan marks the focused panel, blue a clickable local end, and yellow a pin.
 
-Add a local forward with `a`. The target can be one port, a range, or a list: `4966-4968`, `8080`, `db:5432`. Leave the local port empty and lazyfwd picks it: the target port if it is free, otherwise the nearest free port. For example, `4966-4968` with 4966 taken on the local machine gives 4965, 4967, 4968. Set the local port to choose it yourself.
+Every forward has a local end, on this machine, and a remote end, on the host. A local forward (`ssh -L`) listens on its local end and connects to its remote end; a remote forward (`ssh -R`) listens on its remote end and connects to its local end.
 
-Add a remote forward (`ssh -R`, a port on the host that reaches your local machine) with `A`. The remote port defaults to the target port.
+Add a local forward with `a`. The remote end can be one port, a range, or a list: `4966-4968`, `8080`, `db:5432`. Leave the local end empty and lazyfwd picks a port: the target port if it is free, otherwise the nearest free port. For example, `4966-4968` with 4966 taken on the local machine gives 4965, 4967, 4968. Set the local end to choose the port yourself.
+
+Add a remote forward with `A`. Its remote end defaults to the target port.
+
+`e` edits a forward. The form shows a port on localhost as the port alone, so changing it means replacing one word.
 
 Forwards start when you add them, stop when lazyfwd quits, and come back stopped next time.
+
+## Unix sockets
+
+Either end of a forward can be a unix socket instead of a TCP port, in both directions. Type the socket's path where a form asks for an end, for example:
+
+- local forward, remote end `/var/run/docker.sock`, local end `2375`: `docker -H tcp://localhost:2375` reaches the host's Docker.
+- local forward, remote end `8080`, local end `/tmp/app.sock`: a local socket that reaches port 8080 on the host.
+- remote forward, local end `/run/user/1000/app.sock`, remote end `/tmp/app.sock`: a socket on the host that reaches a local one.
+
+A socket path must be absolute and may hold only letters, digits, and `/ . _ + @ % = -`, at most 103 bytes. ssh expands neither `~` nor relative paths on either end, so lazyfwd refuses them. When the target is a socket, there is no port to copy, so set the listening end yourself.
+
+A socket end shows its path. Only a TCP local end is a link, and `o` on a socket end says why it cannot open.
+
+ssh leaves a forward's socket file behind when the forward stops, and refuses to listen on an existing file. When lazyfwd starts a forward on a socket path, it therefore removes a socket there that nothing accepts on: on the local machine itself, and on the host after `ssh -W` finds the socket dead. It never removes a socket that accepts connections or a file that is not a socket; the forward then fails with the reason. Socket files stay behind after lazyfwd quits until the forward next starts.
+
+The Listening panel shows TCP ports only.
 
 ## Connections and logins
 
