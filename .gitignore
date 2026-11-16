@@ -35,3 +35,4 @@ go.work.sum
 .pixi/*
 !.pixi/config.toml
 /lazyfwd
+/dist/
