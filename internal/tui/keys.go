@@ -13,6 +13,7 @@ var keyHelpRows = []keyHelpRow{
 	{"g / G, < / >", "any", "jump to top / bottom"},
 	{"ctrl+d / ctrl+u, . / ,", "any", "move half a page down / up"},
 	{"h / l, tab, 0 1 2 3", "any", "switch panel"},
+	{"esc", "any", "focus the Hosts panel"},
 	{"r", "any", "refresh the host's listening ports"},
 	{"A", "any", "add a remote forward"},
 	{"?", "any", "show or hide this help"},

@@ -100,6 +100,7 @@ lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.j
 | `g` / `G`, `<` / `>` | any | Jump to top / bottom |
 | `ctrl+d` / `ctrl+u`, `.` / `,` | any | Move half a page down / up |
 | `h` / `l`, `tab`, `0` `1` `2` `3` | any | Switch panel |
+| `esc` | any | Focus the Hosts panel |
 | `r` | any | Refresh the host's listening ports |
 | `A` | any | Add a remote forward |
 | `?` | any | Show or hide the key help |
