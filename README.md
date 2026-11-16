@@ -20,8 +20,9 @@ pixi run build   # writes ./lazyfwd
 
 ## Usage
 
-Run `lazyfwd`. The screen has three panels:
+Run `lazyfwd`. The screen has four panels, numbered by their key:
 
+0. **Live** forwards of all hosts, across the top: every running or failed forward, so you can start, stop, open, or edit it without picking its host first. A stopped forward leaves the list; a failed one stays, with ssh's error in the footer, until you restart, stop, or delete it. `enter` shows the forward in its host's Forwards panel.
 1. **Hosts**: your `~/.ssh/config` hosts plus hosts you add. Pinned hosts (`*`) sort first. `●2 ✗1` counts a host's running and failed forwards.
 2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads laptop end, arrow, remote end; `→` is a local forward and `←` a remote one. The laptop end is a clickable link in terminals that support OSC 8 hyperlinks.
 3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and laptop end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`: `ss -ltnp` on Linux, `lsof` and `netstat` on macOS. By default it lists only your own processes, which hides system services such as sshd or tailscaled; `t` shows all ports, with `-` in place of the process name for other users' services.
@@ -43,17 +44,22 @@ lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.j
 | `j` / `k` | any | Move down / up |
 | `g` / `G`, `<` / `>` | any | Jump to top / bottom |
 | `ctrl+d` / `ctrl+u`, `.` / `,` | any | Move half a page down / up |
-| `h` / `l`, `tab`, `1` `2` `3` | any | Switch panel |
+| `h` / `l`, `tab`, `0` `1` `2` `3` | any | Switch panel |
 | `r` | any | Refresh the host's listening ports |
 | `A` | any | Add a remote forward |
 | `?` | any | Show or hide the key help |
 | `q` | any | Stop all forwards and quit |
+| `space`, `s` | Live | Start or stop the forward |
+| `enter` | Live | Show the forward in its host's Forwards panel |
+| `e` | Live | Edit the forward (restarts it if running) |
+| `d` | Live | Delete the forward |
+| `o` | Live | Open the laptop end in the browser |
 | `a` | Hosts | Add a host (any ssh destination, e.g. `user@box`) |
 | `p` | Hosts | Pin or unpin the host |
 | `d` | Hosts | Remove an added host that has no forwards |
 | `enter` | Hosts | Open the host's forwards |
 | `a` | Forwards, Listening | Add a local forward |
-| `space` | Forwards | Start or stop the forward |
+| `space`, `s` | Forwards | Start or stop the forward |
 | `e` | Forwards | Edit the forward (restarts it if running) |
 | `d` | Forwards | Delete the forward |
 | `o` | Forwards | Open the laptop end in the browser |

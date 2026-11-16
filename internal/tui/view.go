@@ -12,6 +12,8 @@ import (
 const (
 	hostsPanelWidth    = 34
 	minListenersHeight = 7
+	// maxLiveRows caps the Live panel, which scrolls beyond it.
+	maxLiveRows = 6
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
@@ -85,20 +87,29 @@ func (m Model) View() string {
 	if m.isShowingHelp {
 		return lipgloss.JoinVertical(lipgloss.Left, m.helpView(bodyHeight), footer)
 	}
+	live := m.liveForwards()
+	liveLines := m.forwardLines(live)
+	if len(liveLines) == 0 {
+		liveLines = []string{styleMuted.Render("no running or failed forwards")}
+	}
+	// The Live panel fits its rows, up to maxLiveRows and a third of the screen.
+	liveHeight := min(min(len(liveLines), maxLiveRows)+2, max(3, bodyHeight/3))
+	lowerHeight := bodyHeight - liveHeight
 	rightWidth := m.width - hostsPanelWidth
-	listenersHeight := max(minListenersHeight, bodyHeight/3)
+	listenersHeight := max(minListenersHeight, lowerHeight/3)
 	host := m.selectedHost()
-	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, bodyHeight)
-	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, bodyHeight-listenersHeight)
+	livePanel := m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), m.width, liveHeight)
+	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, lowerHeight)
+	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, lowerHeight-listenersHeight)
 	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, listenersHeight)
 	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
-	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), footer)
+	return lipgloss.JoinVertical(lipgloss.Left, livePanel, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), footer)
 }
 
-var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening"}
+var panelNames = [panelCount]string{"Live", "Hosts", "Forwards", "Listening"}
 
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
-// title reads "[n]─Name · detail", and the bottom edge shows the cursor
+// title reads "[n]─Name · detail", where n is the panel's number key, and the bottom edge shows the cursor
 // position among count items. The cursor is a marker column, since reverse
 // video breaks at the first styled cell inside a row; lines beyond count, such
 // as an empty-list hint, get no marker.
@@ -108,7 +119,7 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	if isFocused {
 		number, name, chrome = styleFocus, styleFocus.Bold(true), styleFocus
 	}
-	title := number.Render(fmt.Sprintf("[%d]", which+1)) + chrome.Render("─") + name.Render(panelNames[which])
+	title := number.Render(fmt.Sprintf("[%d]", which)) + chrome.Render("─") + name.Render(panelNames[which])
 	if detail != "" {
 		title += styleMuted.Render(" · " + detail)
 	}
@@ -333,6 +344,8 @@ func (m Model) keyHints() []keyHint {
 		return []keyHint{{"enter", "save"}, {"esc", "cancel"}, {"tab", "next field"}}
 	case m.isShowingHelp:
 		return []keyHint{{"any key", "closes the help"}}
+	case m.focus == panelLive:
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "start/stop"}, {"enter", "go to"}, {"o", "open"}, {"e", "edit"}, {"d", "delete"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelHosts:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"enter", "forwards"}, {"a", "add host"}, {"p", "pin"}, {"d", "remove"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelListeners:
