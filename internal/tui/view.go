@@ -36,6 +36,9 @@ func (m Model) View() string {
 	if m.form != nil {
 		return lipgloss.JoinVertical(lipgloss.Left, m.formView(bodyHeight), footer)
 	}
+	if m.isShowingHelp {
+		return lipgloss.JoinVertical(lipgloss.Left, m.helpView(bodyHeight), footer)
+	}
 	rightWidth := m.width - hostsPanelWidth
 	listenersHeight := max(minListenersHeight, bodyHeight/3)
 	hosts := m.panel("[1] Hosts", m.hostLines(), m.hostIndex, panelHosts, hostsPanelWidth, bodyHeight)
@@ -187,6 +190,15 @@ func (m Model) formView(height int) string {
 	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box.Render(strings.Join(lines, "\n")))
 }
 
+func (m Model) helpView(height int) string {
+	lines := []string{styleTitle.Render("Keys"), ""}
+	for _, row := range keyHelpRows {
+		lines = append(lines, fmt.Sprintf("%-24s %-20s %s", row.keys, styleMuted.Render(fmt.Sprintf("%-20s", row.panel)), row.action))
+	}
+	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colorAccent).Padding(1, 2)
+	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box.Render(strings.Join(lines, "\n")))
+}
+
 // footer shows the selected forward's ssh command or failure, the last message, and the keys.
 func (m Model) footer() string {
 	var lines []string
@@ -208,11 +220,13 @@ func (m Model) keyHelp() string {
 	switch {
 	case m.form != nil:
 		return "enter save · esc cancel · tab next field"
+	case m.isShowingHelp:
+		return "any key closes the help"
 	case m.focus == panelHosts:
-		return "j/k move · enter forwards · a add host · p pin · d remove · tab next panel · q quit"
+		return "j/k move · enter forwards · a add host · p pin · d remove · h/l panels · ? help · q quit"
 	case m.focus == panelListeners:
-		return "j/k move · enter forward port · t yours/all · r refresh · a local fwd · tab next panel · q quit"
+		return "j/k move · enter forward port · t yours/all · r refresh · a local fwd · h/l panels · ? help · q quit"
 	default:
-		return "j/k move · space start/stop · a local fwd · A remote fwd · e edit · d delete · o open · r refresh · q quit"
+		return "j/k move · space start/stop · a local fwd · A remote fwd · e edit · d delete · o open · ? help · q quit"
 	}
 }

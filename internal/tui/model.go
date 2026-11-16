@@ -56,6 +56,7 @@ type Model struct {
 	forwardIndex          int
 	listenerIndex         int
 	isShowingAllListeners bool
+	isShowingHelp         bool
 	form                  *form
 	message               string
 	width                 int
@@ -98,6 +99,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.form != nil {
 			return m.updateForm(msg)
 		}
+		if m.isShowingHelp {
+			m.isShowingHelp = false // any key closes the help
+			return m, nil
+		}
 		return m.updateKey(msg)
 	}
 	return m, nil
@@ -112,13 +117,13 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		m.supervisor.StopAll()
 		return m, tea.Quit
-	case "tab":
+	case "tab", "l", "right":
 		cmd = m.focusPanel((m.focus + 1) % panelCount)
-	case "shift+tab":
+	case "shift+tab", "h", "left":
 		cmd = m.focusPanel((m.focus + panelCount - 1) % panelCount)
-	case "1", "h", "left":
+	case "1":
 		cmd = m.focusPanel(panelHosts)
-	case "2", "l", "right":
+	case "2":
 		cmd = m.focusPanel(panelForwards)
 	case "3":
 		cmd = m.focusPanel(panelListeners)
@@ -126,6 +131,16 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.move(1)
 	case "k", "up":
 		m.move(-1)
+	case "g", "<", "home":
+		m.move(-maxRows)
+	case "G", ">", "end":
+		m.move(maxRows)
+	case "ctrl+d", ".", "pgdown":
+		m.move(m.halfPage())
+	case "ctrl+u", ",", "pgup":
+		m.move(-m.halfPage())
+	case "?":
+		m.isShowingHelp = true
 	case "A":
 		if m.selectedHost() != "" {
 			m.form = newForwardForm(workspace.Remote)
@@ -378,6 +393,14 @@ func (m *Model) save() {
 	if err := m.store.Save(m.workspace); err != nil {
 		m.message = "save workspace: " + err.Error()
 	}
+}
+
+// maxRows is larger than any list, so moving by it lands on the first or last row.
+const maxRows = 1 << 30
+
+// halfPage is half the screen height in rows, like vim's ctrl+d.
+func (m Model) halfPage() int {
+	return max(1, m.height/2)
 }
 
 func (m *Model) move(delta int) {
