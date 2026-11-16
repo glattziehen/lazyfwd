@@ -40,7 +40,7 @@ go install github.com/moritzwilksch/lazyfwd@latest
 Run `lazyfwd`. The screen has four panels, numbered by their key:
 
 0. **Live** forwards of all hosts, across the top: every running or failed forward, so you can start, stop, open, or edit it without picking its host first. A stopped forward leaves the list; a failed one stays, with ssh's error in the footer, until you restart or delete it. `enter` shows the forward in its host's Forwards panel.
-1. **Hosts**: the hosts of your ssh config plus hosts you add. Pinned hosts (`*`) sort first. `●2 ✗1` counts a host's running and failed forwards.
+1. **Hosts**: the hosts of your ssh config plus hosts you add. Pinned hosts (`*`) sort first. `● 2  ✗ 1` counts a host's running and failed forwards.
 2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads local end, arrow, remote end; `→` is a local forward and `←` a remote one. The local end is a clickable link in terminals that support OSC 8 hyperlinks: `https://` when the target port is 443 or 8443, `http://` otherwise, and no link for well-known non-web ports such as 22, 3306, 5432, or 6379.
 3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and local end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled and Docker's published ports, which belong to root; the panel's last line counts the hidden ports, and `t` shows all ports, with `-` in place of the process name for other users' services. On a Linux host with neither `ss` nor `netstat`, no port has a process name, so only `t` shows them.
 
@@ -119,6 +119,7 @@ lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.j
 | `d` | Forwards | Delete the forward |
 | `o` | Forwards | Open the local end in the browser |
 | `space`, `enter`, `f` | Listening | Forward this port to the local machine, or start or stop its forward |
+| `o` | Listening | Open the port's forward in the browser |
 | `t` | Listening | Show your ports or all ports |
 
 In forms, `tab` moves between fields, `enter` saves, and `esc` cancels.

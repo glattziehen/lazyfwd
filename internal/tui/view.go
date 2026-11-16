@@ -183,9 +183,12 @@ func (m Model) hostLines() []string {
 		for _, forward := range m.workspace.ForwardsOf(host.Name) {
 			counts[m.status(forward)]++
 		}
+		// "nuc ● 2  ✗ 1": two spaces keep the counts apart as groups.
+		gap := " "
 		for _, status := range []forwardStatus{statusRunning, statusFailed} {
 			if counts[status] > 0 {
-				line += " " + status.style().Render(fmt.Sprintf("%s%d", status.symbol(), counts[status]))
+				line += gap + status.style().Render(fmt.Sprintf("%s %d", status.symbol(), counts[status]))
+				gap = "  "
 			}
 		}
 		lines = append(lines, line)
@@ -357,7 +360,7 @@ func (m Model) keyHints() []keyHint {
 	case m.focus == panelHosts:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"enter", "forwards"}, {"a", "add host"}, {"p", "pin"}, {"d", "remove"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelListeners:
-		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "forward/start/stop"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"q", "quit"}}
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "forward/start/stop"}, {"o", "open"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"q", "quit"}}
 	default:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "start/stop"}, {"a", "local fwd"}, {"A", "remote fwd"}, {"e", "edit"}, {"d", "delete"}, {"o", "open"}, {"q", "quit"}}
 	}
