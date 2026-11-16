@@ -24,11 +24,12 @@ type Store interface {
 type panel int
 
 const (
-	panelLive panel = iota
-	panelHosts
+	panelHosts panel = iota + 1
 	panelForwards
 	panelListeners
-	panelCount
+	panelLive
+	// panelCount is the number of panels, numbered 1 to panelCount.
+	panelCount = panelLive
 )
 
 type exitedMsg tunnel.Exited
@@ -183,17 +184,17 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.supervisor.StopAll()
 		return m, tea.Quit
 	case "tab", "l", "right":
-		cmd = m.focusPanel((m.focus + 1) % panelCount)
+		cmd = m.focusPanel(m.focus%panelCount + 1)
 	case "shift+tab", "h", "left":
-		cmd = m.focusPanel((m.focus + panelCount - 1) % panelCount)
-	case "0":
-		cmd = m.focusPanel(panelLive)
+		cmd = m.focusPanel((m.focus+panelCount-2)%panelCount + 1)
 	case "1", "esc":
 		cmd = m.focusPanel(panelHosts)
 	case "2":
 		cmd = m.focusPanel(panelForwards)
 	case "3":
 		cmd = m.focusPanel(panelListeners)
+	case "4":
+		cmd = m.focusPanel(panelLive)
 	case "j", "down":
 		m.move(1)
 	case "k", "up":

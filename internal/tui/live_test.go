@@ -26,7 +26,7 @@ func newLiveModel(t *testing.T, failed ...workspace.ForwardID) Model {
 		}
 	}
 	m := New(discardStore{}, newTestSupervisor(t), ws, nil)
-	m = send(m, keyMsg("0"))
+	m = send(m, keyMsg("4"))
 	for _, id := range failed {
 		m = send(m, exitedMsg{ID: id, Reason: "boom"})
 	}
