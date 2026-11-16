@@ -19,8 +19,9 @@ const (
 
 // socketPathPattern is an absolute path in characters that need no quoting in
 // ssh's forward spec or in a remote shell. ssh reads a spec part as a socket
-// only if it holds a "/", and expands neither "~" nor relative paths.
-var socketPathPattern = regexp.MustCompile(`^/[A-Za-z0-9/._+@%=-]+$`)
+// only if it holds a "/", expands neither "~" nor relative paths, and
+// expands % tokens such as %h, so "%" is not allowed.
+var socketPathPattern = regexp.MustCompile(`^/[A-Za-z0-9/._+@=-]+$`)
 
 // ParseTargets parses a comma-separated list of targets. Each item is
 // [host:]port, [host:]first-last, or an absolute unix socket path, e.g.
@@ -97,7 +98,7 @@ func parseSocketPath(text string) (End, error) {
 	case len(text) > maxSocketPathLength:
 		return End{}, fmt.Errorf("socket path %q is longer than %d bytes", text, maxSocketPathLength)
 	case !socketPathPattern.MatchString(text):
-		return End{}, fmt.Errorf("socket path %q may hold only letters, digits, and / . _ + @ %% = -", text)
+		return End{}, fmt.Errorf("socket path %q may hold only letters, digits, and / . _ + @ = -", text)
 	}
 	return End{Path: text}, nil
 }

@@ -29,7 +29,7 @@ func (c *loginCommand) SetStdout(w io.Writer) {
 }
 
 func (c *loginCommand) Run() error {
-	fmt.Fprintf(c.stdout, "lazyfwd: %s needs a login. lazyfwd returns once ssh connects.\n\n", c.Host)
+	fmt.Fprintf(c.stdout, "lazyfwd: %s needs a login. lazyfwd returns once ssh connects; ctrl+c cancels.\n\n", c.Host)
 	err := c.Login.Run()
 	var connectErr *tunnel.ConnectError
 	if !errors.As(err, &connectErr) {

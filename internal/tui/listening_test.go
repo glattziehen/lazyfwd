@@ -61,3 +61,18 @@ func TestEscFocusesHostsWithoutFetching(t *testing.T) {
 		t.Fatalf("focus = %v, cmd = %v; want Hosts and no command", focus, cmd)
 	}
 }
+
+// With only the user's own ports known, "all" would silently equal "yours".
+func TestListeningPanelSaysWhenHostHidesOtherUsersPorts(t *testing.T) {
+	m := New(discardStore{}, newTestSupervisor(t), workspace.Workspace{}, []string{"box"})
+	m = send(m, tea.WindowSizeMsg{Width: 120, Height: 40})
+	found := []listeners.Listener{{Port: 3000, Process: "node"}}
+	m = send(m, listenersMsg{host: "box", result: listenerResult{listeners: found, isOwnOnly: true}})
+	m = send(m, keyMsg("3"))
+
+	m = send(m, keyMsg("t"))
+
+	if view := m.View(); !strings.Contains(view, "box shows you only your own ports") {
+		t.Fatalf("note missing from view:\n%s", view)
+	}
+}
