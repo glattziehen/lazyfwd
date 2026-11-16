@@ -136,16 +136,22 @@ func frame(title, note string, lines []string, chrome lipgloss.Style, width, hei
 	innerWidth := width - 2
 	title = cut(title, innerWidth-2)
 	note = cut(note, innerWidth-2)
-	out := []string{chrome.Render("╭─") + title + chrome.Render(strings.Repeat("─", innerWidth-1-lipgloss.Width(title))+"╮")}
+	out := []string{chrome.Render("╭─") + title + chrome.Render(repeat("─", innerWidth-1-lipgloss.Width(title))+"╮")}
 	for i := range height - 2 {
 		line := ""
 		if i < len(lines) {
 			line = cut(lines[i], innerWidth)
 		}
-		out = append(out, chrome.Render("│")+line+strings.Repeat(" ", innerWidth-lipgloss.Width(line))+chrome.Render("│"))
+		out = append(out, chrome.Render("│")+line+repeat(" ", innerWidth-lipgloss.Width(line))+chrome.Render("│"))
 	}
-	out = append(out, chrome.Render("╰"+strings.Repeat("─", innerWidth-1-lipgloss.Width(note)))+note+chrome.Render("─╯"))
+	out = append(out, chrome.Render("╰"+repeat("─", innerWidth-1-lipgloss.Width(note)))+note+chrome.Render("─╯"))
 	return strings.Join(out, "\n")
+}
+
+// repeat is strings.Repeat that yields "" for a negative count, which frame
+// computes on a terminal narrower than its panels.
+func repeat(s string, count int) string {
+	return strings.Repeat(s, max(0, count))
 }
 
 // cut truncates a styled string to width cells.
