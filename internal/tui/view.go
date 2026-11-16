@@ -316,7 +316,8 @@ func (m Model) footer() string {
 	return lipgloss.NewStyle().MaxWidth(m.width).Render(strings.Join(lines, "\n"))
 }
 
-// keyHint is one entry of the footer's key line.
+// keyHint is one entry of the footer's key line. "? help" leads each line, so
+// it stays visible when a narrow terminal cuts the end.
 type keyHint struct {
 	key    string
 	action string
@@ -329,10 +330,10 @@ func (m Model) keyHints() []keyHint {
 	case m.isShowingHelp:
 		return []keyHint{{"any key", "closes the help"}}
 	case m.focus == panelHosts:
-		return []keyHint{{"j/k", "move"}, {"enter", "forwards"}, {"a", "add host"}, {"p", "pin"}, {"d", "remove"}, {"h/l", "panels"}, {"?", "help"}, {"q", "quit"}}
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"enter", "forwards"}, {"a", "add host"}, {"p", "pin"}, {"d", "remove"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelListeners:
-		return []keyHint{{"j/k", "move"}, {"enter", "forward port"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"?", "help"}, {"q", "quit"}}
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"enter", "forward port"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"q", "quit"}}
 	default:
-		return []keyHint{{"j/k", "move"}, {"space", "start/stop"}, {"a", "local fwd"}, {"A", "remote fwd"}, {"e", "edit"}, {"d", "delete"}, {"o", "open"}, {"?", "help"}, {"q", "quit"}}
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "start/stop"}, {"a", "local fwd"}, {"A", "remote fwd"}, {"e", "edit"}, {"d", "delete"}, {"o", "open"}, {"q", "quit"}}
 	}
 }
