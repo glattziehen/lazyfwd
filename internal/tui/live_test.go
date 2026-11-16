@@ -25,17 +25,23 @@ func newLiveModel(t *testing.T, failed ...workspace.ForwardID) Model {
 			t.Fatal(err)
 		}
 	}
-	supervisor, err := tunnel.NewSupervisor(filepath.Join(t.TempDir(), "run"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(supervisor.StopAll)
-	m := New(discardStore{}, supervisor, ws, nil)
+	m := New(discardStore{}, newTestSupervisor(t), ws, nil)
 	m = send(m, keyMsg("0"))
 	for _, id := range failed {
 		m = send(m, exitedMsg{ID: id, Reason: "boom"})
 	}
 	return m
+}
+
+// newTestSupervisor keeps its run directory in the test's temp directory.
+func newTestSupervisor(t *testing.T) *tunnel.Supervisor {
+	t.Helper()
+	supervisor, err := tunnel.NewSupervisor(filepath.Join(t.TempDir(), "run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(supervisor.StopAll)
+	return supervisor
 }
 
 func send(m Model, msg tea.Msg) Model {

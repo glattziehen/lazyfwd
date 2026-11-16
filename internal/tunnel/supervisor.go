@@ -5,12 +5,9 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
@@ -142,8 +139,10 @@ func (s *Supervisor) Login(host string) *Login {
 }
 
 // Run runs command on host over its connection, opening the connection
-// without prompts if needed, and returns its stdout. A *ConnectError reports
-// that the connection did not open.
+// without prompts if needed, and returns its stdout, also when it fails. The
+// error is an *exec.ExitError when the command ran and exited non-zero, a
+// *ConnectError when the connection did not open, and ssh's first stderr
+// line for ssh's other failures.
 func (s *Supervisor) Run(ctx context.Context, host, command string) (string, error) {
 	s.mu.Lock()
 	if s.isStopped {
@@ -165,14 +164,17 @@ func (s *Supervisor) Run(ctx context.Context, host, command string) (string, err
 	cmd := exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, host, command)...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
-		if reason == "" {
-			reason = err.Error()
-		}
-		return "", errors.New(strings.TrimSpace(reason))
+	err := cmd.Run()
+	// ssh exits 255 for its own errors; other statuses are the command's.
+	var exitErr *exec.ExitError
+	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() != 255) {
+		return stdout.String(), err
 	}
-	return stdout.String(), nil
+	reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
+	if reason == "" {
+		reason = err.Error()
+	}
+	return stdout.String(), errors.New(strings.TrimSpace(reason))
 }
 
 // connection returns host's connection, creating it on first use; s.mu must
@@ -210,22 +212,4 @@ func (s *Supervisor) fail(id workspace.ForwardID, generation uint64, reason stri
 	case s.exits <- Exited{ID: id, Reason: reason, NeedsLogin: needsLogin}:
 	case <-s.ctx.Done(): // nobody reads exits once StopAll began
 	}
-}
-
-// IsLaptopPortFree reports whether a TCP port on the laptop's loopback can be
-// bound. ssh binds "localhost" on IPv4 and IPv6, so both must be free; a
-// machine without IPv6 only needs IPv4.
-func IsLaptopPortFree(port int) bool {
-	portText := strconv.Itoa(port)
-	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", portText))
-	if err != nil {
-		return false
-	}
-	defer listener.Close()
-	listener6, err := net.Listen("tcp6", net.JoinHostPort("::1", portText))
-	if err != nil {
-		return !errors.Is(err, syscall.EADDRINUSE)
-	}
-	_ = listener6.Close()
-	return true
 }

@@ -2,9 +2,11 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -15,6 +17,12 @@ import (
 )
 
 func main() {
+	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Println("lazyfwd", version())
+		return
+	}
 	if err := run(); err != nil {
 		fmt.Fprintln(os.Stderr, "lazyfwd:", err)
 		os.Exit(1)
@@ -27,6 +35,11 @@ func run() error {
 		return err
 	}
 	store := workspace.FileStore{Path: storePath}
+	release, err := store.Lock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	ws, err := store.Load()
 	if err != nil {
 		return err
@@ -35,7 +48,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"))
+	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath)
 	if err != nil {
 		return err
 	}
@@ -46,4 +59,15 @@ func run() error {
 	defer supervisor.StopAll()
 	_, err = tea.NewProgram(tui.New(store, supervisor, ws, sshConfigHosts), tea.WithAltScreen()).Run()
 	return err
+}
+
+// version is the main module version the go command stamps at build time:
+// the tag for a release or `go install ...@vX`, a pseudo-version from git for
+// a local build, and "(devel)" for a build outside a git checkout.
+func version() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok || info.Main.Version == "" {
+		return "(devel)"
+	}
+	return info.Main.Version
 }

@@ -17,19 +17,20 @@ const (
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
-// colour has one meaning across the whole UI.
+// colour has one meaning across the whole UI. Muted text (stopped forwards,
+// hints, unfocused borders) is faint rather than ANSI 8 ("bright black"),
+// which some themes, such as Solarized Dark, map to the background colour.
 var (
 	colorFocus   = lipgloss.Color("6") // focused panel, cursor, and form field
 	colorRunning = lipgloss.Color("2")
 	colorFailed  = lipgloss.Color("1")
-	colorMuted   = lipgloss.Color("8") // stopped forwards, hints, unfocused borders
 	colorLink    = lipgloss.Color("4") // clickable laptop ends
 	colorPin     = lipgloss.Color("3")
 
 	styleFocus   = lipgloss.NewStyle().Foreground(colorFocus)
 	styleRunning = lipgloss.NewStyle().Foreground(colorRunning)
 	styleFailed  = lipgloss.NewStyle().Foreground(colorFailed)
-	styleMuted   = lipgloss.NewStyle().Foreground(colorMuted)
+	styleMuted   = lipgloss.NewStyle().Faint(true)
 	styleLink    = lipgloss.NewStyle().Foreground(colorLink)
 	stylePin     = lipgloss.NewStyle().Foreground(colorPin)
 	styleBold    = lipgloss.NewStyle().Bold(true)
@@ -206,7 +207,10 @@ func (m Model) forwardLines(forwards []workspace.Forward) []string {
 	for _, forward := range forwards {
 		status := m.status(forward)
 		laptop := forward.LaptopAddr().String()
-		link := hyperlink(forward.LaptopURL(), styleLink.Render(laptop))
+		link := laptop
+		if url, isWeb := forward.LaptopURL(); isWeb {
+			link = hyperlink(url, styleLink.Render(laptop))
+		}
 		padding := strings.Repeat(" ", laptopWidth-len(laptop))
 		arrow := "→"
 		if forward.Direction == workspace.Remote {
@@ -263,8 +267,12 @@ func (m Model) listenerLines() []string {
 		}
 		lines = append(lines, line)
 	}
-	if len(lines) == 0 {
-		lines = append(lines, styleMuted.Render("no listening ports of yours; t shows all"))
+	// Other users' ports include Docker's published ports, which belong to
+	// root's docker-proxy, so the hidden count names Docker.
+	if hidden := len(result.listeners) - len(m.visibleListeners()); hidden > 0 {
+		lines = append(lines, styleMuted.Render(fmt.Sprintf("%d more of other users, such as Docker: t shows all", hidden)))
+	} else if len(lines) == 0 {
+		lines = append(lines, styleMuted.Render("no listening ports"))
 	}
 	return lines
 }
