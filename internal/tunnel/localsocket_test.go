@@ -15,7 +15,7 @@ func shortTempDir(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return dir
 }
 
@@ -26,7 +26,7 @@ func TestFreeLocalSocketRemovesStaleSocket(t *testing.T) {
 		t.Fatal(err)
 	}
 	listener.(*net.UnixListener).SetUnlinkOnClose(false)
-	listener.Close()
+	_ = listener.Close()
 
 	if err := freeLocalSocket(path); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestFreeLocalSocketKeepsLiveSocket(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 
 	if err := freeLocalSocket(path); err == nil {
 		t.Fatal("freed a socket that accepts connections")
