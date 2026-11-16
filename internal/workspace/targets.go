@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -45,8 +46,8 @@ func ParseTargets(text string) ([]End, error) {
 		if i := strings.LastIndex(item, ":"); i >= 0 {
 			host, ports = strings.Trim(item[:i], "[]"), item[i+1:]
 		}
-		if host == "" {
-			return nil, fmt.Errorf("target %q has an empty host", item)
+		if err := validateTargetHost(host); err != nil {
+			return nil, fmt.Errorf("target %q: %w", item, err)
 		}
 		first, last, err := parsePortRange(ports)
 		if err != nil {
@@ -90,17 +91,33 @@ func isPathLike(text string) bool {
 }
 
 func parseSocketPath(text string) (End, error) {
-	switch {
-	case strings.HasPrefix(text, "~"):
-		return End{}, fmt.Errorf("socket path %q: write it out from /, since ssh does not expand ~", text)
-	case !strings.HasPrefix(text, "/"):
-		return End{}, fmt.Errorf("socket path %q must be absolute, starting with /", text)
-	case len(text) > maxSocketPathLength:
-		return End{}, fmt.Errorf("socket path %q is longer than %d bytes", text, maxSocketPathLength)
-	case !socketPathPattern.MatchString(text):
-		return End{}, fmt.Errorf("socket path %q may hold only letters, digits, and / . _ + @ = -", text)
+	if err := ValidateSocketPath(text); err != nil {
+		return End{}, err
 	}
 	return End{Path: text}, nil
+}
+
+// ValidateSocketPath reports why path cannot be a socket end. A valid path
+// needs no quoting in ssh's forward spec or in a remote shell.
+func ValidateSocketPath(path string) error {
+	switch {
+	case strings.HasPrefix(path, "~"):
+		return fmt.Errorf("socket path %q: write it out from /, since ssh does not expand ~", path)
+	case !strings.HasPrefix(path, "/"):
+		return fmt.Errorf("socket path %q must be absolute, starting with /", path)
+	case len(path) > maxSocketPathLength:
+		return fmt.Errorf("socket path %q is longer than %d bytes", path, maxSocketPathLength)
+	case !socketPathPattern.MatchString(path):
+		return fmt.Errorf("socket path %q may hold only letters, digits, and / . _ + @ = -", path)
+	}
+	return nil
+}
+
+func validateTargetHost(host string) error {
+	if host == "" {
+		return errors.New("empty host")
+	}
+	return nil
 }
 
 func parsePortRange(text string) (int, int, error) {
@@ -124,8 +141,15 @@ func parsePortRange(text string) (int, int, error) {
 
 func parsePort(text string) (int, error) {
 	port, err := strconv.Atoi(strings.TrimSpace(text))
-	if err != nil || port < 1 || port > 65535 {
+	if err != nil || validatePort(port) != nil {
 		return 0, fmt.Errorf("port must be 1-65535, got %q", text)
 	}
 	return port, nil
+}
+
+func validatePort(port int) error {
+	if port < 1 || port > 65535 {
+		return fmt.Errorf("port must be 1-65535, got %d", port)
+	}
+	return nil
 }

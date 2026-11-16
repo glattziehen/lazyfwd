@@ -37,6 +37,11 @@ func (s FileStore) Load() (Workspace, error) {
 	if err := json.Unmarshal(content, &workspace); err != nil {
 		return workspace, fmt.Errorf("parse %s: %w", s.Path, err)
 	}
+	// Refuse the whole file rather than skip the entry: the next save would
+	// drop a skipped forward from the file without a word.
+	if err := workspace.validate(); err != nil {
+		return Workspace{}, fmt.Errorf("%s: %w; fix or remove that entry", s.Path, err)
+	}
 	workspace.repairIDs()
 	return workspace, nil
 }
