@@ -13,6 +13,12 @@ import (
 // client of it. Every ssh call ends in "--" and the host, so a host that
 // starts with "-" cannot pass as an option.
 
+// clearConfigForwards keeps the LocalForward, RemoteForward, and
+// DynamicForward lines of ~/.ssh/config off lazyfwd's connections, where they
+// would hold ports that no forward in lazyfwd shows. It clears command-line
+// forwards too, so control commands read no config instead.
+const clearConfigForwards = "ClearAllForwardings=yes"
+
 // masterOptions set up a background master that logs to logPath instead of
 // the terminal. The command line wins over ~/.ssh/config, so a user's own
 // ControlMaster, ControlPath, and ControlPersist do not apply to it.
@@ -20,6 +26,7 @@ func masterOptions(socketPath, logPath string) []string {
 	return []string{
 		"-f", "-N",
 		"-E", logPath,
+		"-o", clearConfigForwards,
 		"-o", "ControlMaster=yes",
 		"-o", "ControlPath=" + socketPath,
 		"-o", "ControlPersist=no",
@@ -43,9 +50,11 @@ func loginArgs(socketPath, logPath, host string) []string {
 }
 
 // controlArgs send a control command ("check", "exit", "forward", "cancel")
-// to the master on socketPath.
+// to the master on socketPath. They read no ssh config: a control command
+// sends the config's forwards along with its own, and it needs nothing else
+// from the config since it never connects to the host.
 func controlArgs(socketPath, command, host string, extra ...string) []string {
-	args := append([]string{"-S", socketPath, "-O", command}, extra...)
+	args := append([]string{"-F", "none", "-S", socketPath, "-O", command}, extra...)
 	return append(args, "--", host)
 }
 
@@ -55,6 +64,7 @@ func remoteCommandArgs(socketPath, host, command string) []string {
 	return []string{
 		"-S", socketPath,
 		"-o", "ControlMaster=no",
+		"-o", clearConfigForwards,
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=10",
 		"--", host, command,

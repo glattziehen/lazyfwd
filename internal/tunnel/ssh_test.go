@@ -28,6 +28,23 @@ func TestEverySSHCallEndsOptionsBeforeTheHost(t *testing.T) {
 	}
 }
 
+func TestConnectionsSkipForwardsFromSSHConfig(t *testing.T) {
+	calls := map[string][]string{
+		"batch master":   batchMasterArgs("/s", "/s.log", "box"),
+		"login":          loginArgs("/s", "/s.log", "box"),
+		"remote command": remoteCommandArgs("/s", "box", "true"),
+	}
+	for name, args := range calls {
+		if !slices.Contains(args, "ClearAllForwardings=yes") {
+			t.Errorf("%s would open the config's forwards: %v", name, args)
+		}
+	}
+	forward := workspace.Forward{Host: "box", Direction: workspace.Local, BindPort: 9000, Target: workspace.Addr{Host: "localhost", Port: 8000}}
+	if args := forwardArgs("/s", forward); !slices.Equal(args[:2], []string{"-F", "none"}) {
+		t.Errorf("-O forward would send the config's forwards: %v", args)
+	}
+}
+
 func TestOnlyTheBatchMasterRefusesPrompts(t *testing.T) {
 	if !slices.Contains(batchMasterArgs("/s", "/s.log", "box"), "BatchMode=yes") {
 		t.Error("batch master may prompt")
