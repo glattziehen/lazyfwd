@@ -487,15 +487,21 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		// Stop first so the forward's own local port counts as free again.
+		// Change the workspace first, so a refused edit leaves the forward
+		// running as it was; the running forward's own local port counts as
+		// free, since the restart releases it.
 		wasRunning := m.supervisor.IsRunning(f.forwardID)
-		m.supervisor.Stop(f.forwardID)
-		delete(m.failures, f.forwardID)
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, tunnel.IsLocalPortFree)
+		isFree := tunnel.IsLocalPortFree
+		if old, ok := m.forward(f.forwardID); ok && wasRunning && old.Direction == workspace.Local && !old.Bind.IsSocket() {
+			isFree = func(port int) bool { return port == old.Bind.Port || tunnel.IsLocalPortFree(port) }
+		}
+		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, isFree)
 		if err != nil {
 			return err
 		}
 		m.save()
+		m.supervisor.Stop(f.forwardID)
+		delete(m.failures, f.forwardID)
 		if wasRunning {
 			m.start(forward)
 		}
