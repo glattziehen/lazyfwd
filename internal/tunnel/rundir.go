@@ -11,11 +11,13 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/glattziehen/lazyfwd/internal/lockfile"
 )
 
 // Each lazyfwd process keeps its masters' sockets and logs in its own run
-// directory, <base>/<pid>, and holds an flock on <base>/<pid>/lock while it
-// runs. The kernel drops the lock when the process dies, however it dies, so
+// directory, <base>/<pid>, and holds a lock on <base>/<pid>/lock while it
+// runs. The system drops the lock when the process dies, however it dies, so
 // a later lazyfwd can tell a crashed instance's directory from a live one and
 // close the masters left in it, which still hold their forwards' ports.
 
@@ -138,20 +140,20 @@ func closeLeftovers(base string) {
 	}
 }
 
-// tryLock opens path and takes an exclusive flock without waiting; it
-// returns nil when another process holds the lock. Go opens files
-// close-on-exec, so ssh children do not inherit the lock.
+// tryLock opens path and takes an exclusive lock without waiting; it returns
+// nil when another process holds the lock. Go opens files close-on-exec, and
+// on Windows without inheritance, so ssh children do not inherit the lock.
 func tryLock(path string) (*os.File, error) {
 	lock, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	err = lockfile.TryLock(lock)
 	if err == nil {
 		return lock, nil
 	}
 	_ = lock.Close()
-	if errors.Is(err, syscall.EWOULDBLOCK) {
+	if errors.Is(err, lockfile.ErrLocked) {
 		return nil, nil
 	}
 	return nil, err
