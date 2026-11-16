@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -139,9 +140,35 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			m.isShowingHelp = false // any key closes the help
 			return m, nil
 		}
+		if isMovementBurst(msg) {
+			for _, key := range msg.Runes {
+				m, _ = m.updateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			}
+			return m, nil
+		}
 		return m.updateKey(msg)
 	}
 	return m, nil
+}
+
+// movementKeys only move a cursor, so running them from a burst is safe.
+const movementKeys = "jkgG<>.,"
+
+// isMovementBurst reports whether msg holds several typed keys that all move
+// a cursor. bubbletea delivers keys that arrive in one read, such as key
+// repeat over a slow connection, as one message. A terminal without
+// bracketed paste delivers a paste the same way, so a burst holding any key
+// that acts, such as d or q, stays ignored.
+func isMovementBurst(msg tea.KeyMsg) bool {
+	if msg.Type != tea.KeyRunes || msg.Paste || len(msg.Runes) < 2 {
+		return false
+	}
+	for _, key := range msg.Runes {
+		if !strings.ContainsRune(movementKeys, key) {
+			return false
+		}
+	}
+	return true
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
