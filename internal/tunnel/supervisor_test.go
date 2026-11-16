@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // fakeSSH puts an ssh on PATH that logs its pid and arguments to a file in

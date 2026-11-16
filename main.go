@@ -10,10 +10,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/moritzwilksch/lazyfwd/internal/sshconfig"
-	"github.com/moritzwilksch/lazyfwd/internal/tui"
-	"github.com/moritzwilksch/lazyfwd/internal/tunnel"
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/sshconfig"
+	"github.com/glattziehen/lazyfwd/internal/tui"
+	"github.com/glattziehen/lazyfwd/internal/tunnel"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 func main() {
