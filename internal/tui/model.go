@@ -11,14 +11,10 @@ import (
 
 	"github.com/glattziehen/lazyfwd/internal/browser"
 	"github.com/glattziehen/lazyfwd/internal/listeners"
+	"github.com/glattziehen/lazyfwd/internal/owner"
 	"github.com/glattziehen/lazyfwd/internal/tunnel"
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
-
-// Store persists the workspace after every change.
-type Store interface {
-	Save(workspace.Workspace) error
-}
 
 // panel is a panel in focus order; its value is its number key.
 type panel int
@@ -32,7 +28,9 @@ const (
 	panelCount = panelLive
 )
 
-type exitedMsg tunnel.Exited
+// eventMsg reports a change in the owner, made by this TUI, a CLI command,
+// or ssh.
+type eventMsg owner.Event
 
 // listenerResult is one fetch of a host's listening ports.
 type listenerResult struct {
@@ -54,14 +52,12 @@ type loginMsg struct {
 	err  error
 }
 
-// Model is the bubbletea model. Forward status derives from the supervisor
-// (running) and failures (last ssh error since the forward last started).
+// Model is the bubbletea model. The owner holds the workspace and runs the
+// forwards; the model shows a copy of its state, read after every message.
 type Model struct {
-	store          Store
-	supervisor     *tunnel.Supervisor
-	sshConfigHosts []string
-	workspace      workspace.Workspace
-	failures       map[workspace.ForwardID]string
+	owner  *owner.Owner
+	events <-chan owner.Event
+	state  owner.State
 	// listenerResults caches each host's listening ports for the session.
 	listenerResults map[string]listenerResult
 
@@ -86,33 +82,48 @@ type Model struct {
 	height     int
 }
 
-func New(store Store, supervisor *tunnel.Supervisor, ws workspace.Workspace, sshConfigHosts []string) Model {
+// New shows o's workspace; quitting closes o, which stops its forwards.
+func New(o *owner.Owner) Model {
+	events, _ := o.Subscribe() // the TUI listens until the process ends
 	return Model{
-		store:           store,
-		supervisor:      supervisor,
-		sshConfigHosts:  sshConfigHosts,
-		workspace:       ws,
-		failures:        map[workspace.ForwardID]string{},
+		owner:           o,
+		events:          events,
+		state:           o.State(),
 		listenerResults: map[string]listenerResult{},
 		focus:           panelHosts,
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.waitForExit()
+	return m.waitForEvent()
 }
 
-func (m Model) waitForExit() tea.Cmd {
-	exits := m.supervisor.Exits()
-	return func() tea.Msg { return exitedMsg(<-exits) }
+func (m Model) waitForEvent() tea.Cmd {
+	events := m.events
+	return func() tea.Msg { return eventMsg(<-events) }
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
-	// Any message can start, stop, or fail a forward, so the live list may
-	// have changed under the cursor.
+	// Any message can follow a change by the CLI or ssh, and the live list
+	// may have changed under the cursor.
+	next.refresh()
 	next.selectLive(next.liveCursor(next.liveForwards()))
 	return next, cmd
+}
+
+// refresh reads the owner's state and keeps the cursor on the selected host
+// and forward, which a change from the CLI may have moved to another row.
+func (m *Model) refresh() {
+	host := m.selectedHost()
+	forward, hasForward := m.selectedForward()
+	m.state = m.owner.State()
+	m.selectHost(host)
+	m.hostIndex = clamp(m.hostIndex, len(m.hosts()))
+	if i := slices.IndexFunc(m.forwards(), func(f workspace.Forward) bool { return f.ID == forward.ID }); hasForward && i >= 0 {
+		m.forwardIndex = i
+	}
+	m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 }
 
 func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
@@ -120,11 +131,10 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
 		return m, nil
-	case exitedMsg:
-		m.failures[msg.ID] = msg.Reason
-		cmd := m.waitForExit()
-		if forward, ok := m.forward(msg.ID); ok && msg.NeedsLogin {
-			cmd = tea.Batch(cmd, m.queueLogin(forward.Host))
+	case eventMsg:
+		cmd := m.waitForEvent()
+		if msg.LoginHost != "" {
+			cmd = tea.Batch(cmd, m.queueLogin(msg.LoginHost))
 		}
 		return m, cmd
 	case listenersMsg:
@@ -256,9 +266,9 @@ func (m *Model) fetchListenersOf(host string) tea.Cmd {
 		return nil
 	}
 	m.listenerResults[host] = listenerResult{isLoading: true}
-	run := m.supervisor.Run
+	o := m.owner
 	return func() tea.Msg {
-		listing, err := listeners.Fetch(run, host)
+		listing, err := o.Listeners(host)
 		return listenersMsg{host: host, result: listenerResult{listeners: listing.Listeners, isOwnOnly: listing.IsOwnOnly, err: err}}
 	}
 }
@@ -279,7 +289,11 @@ func (m *Model) queueLogin(host string) tea.Cmd {
 }
 
 func (m *Model) runLogin(host string) tea.Cmd {
-	login := &loginCommand{Login: m.supervisor.Login(host)}
+	controlPath, err := m.owner.ControlPath(host)
+	if err != nil {
+		return func() tea.Msg { return loginMsg{host: host, err: err} }
+	}
+	login := &loginCommand{Login: tunnel.NewLogin(host, controlPath)}
 	return tea.Exec(login, func(err error) tea.Msg { return loginMsg{host: host, err: err} })
 }
 
@@ -291,11 +305,7 @@ func (m *Model) finishLogin(msg loginMsg) tea.Cmd {
 	if msg.err != nil {
 		m.message = "login to " + msg.host + " failed: " + msg.err.Error()
 	} else {
-		for _, forward := range m.workspace.ForwardsOf(msg.host) {
-			if _, failed := m.failures[forward.ID]; failed {
-				m.start(forward)
-			}
-		}
+		m.report(m.owner.LoggedIn(msg.host))
 		if m.listenerResults[msg.host].err != nil {
 			cmds = append(cmds, m.fetchListenersOf(msg.host))
 		}
@@ -319,21 +329,18 @@ func (m *Model) updateHostKey(key string) tea.Cmd {
 	case "enter":
 		return m.focusPanel(panelForwards)
 	case "p":
-		m.workspace.TogglePin(host.Name)
-		m.save()
-		m.selectHost(host.Name)
+		if host.IsPinned {
+			m.report(m.owner.UnpinHost(host.Name))
+		} else {
+			m.report(m.owner.PinHost(host.Name))
+		}
+		m.refresh()
 	case "d":
-		// Refuse rather than cascade, so no single key deletes more than one forward.
-		if count := len(m.workspace.ForwardsOf(host.Name)); count > 0 {
-			m.message = fmt.Sprintf("delete the forwards of %s first (%d left)", host.Name, count)
+		if err := m.owner.RemoveHost(host.Name); err != nil {
+			m.message = err.Error()
 			return nil
 		}
-		if !host.IsManual {
-			m.message = host.Name + " comes from your ssh config (~/.ssh/config or /etc/ssh/ssh_config); remove it there"
-			return nil
-		}
-		m.workspace.RemoveHost(host.Name)
-		m.save()
+		m.refresh()
 		m.clampHostIndex()
 	}
 	return nil
@@ -374,11 +381,8 @@ func (m *Model) actOnForward(key string, forward workspace.Forward) {
 	case "e":
 		m.form = newEditForm(forward)
 	case "d":
-		m.supervisor.Stop(forward.ID)
-		delete(m.failures, forward.ID)
-		m.workspace.DeleteForward(forward.ID)
-		m.save()
-		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
+		m.report(m.owner.DeleteForward(forward.ID))
+		m.refresh()
 	case "o":
 		url, isWeb := forward.LocalURL()
 		if forward.LocalEnd().IsSocket() {
@@ -425,24 +429,17 @@ func (m *Model) updateListenerKey(key string) {
 			return
 		}
 		target := workspace.End{Host: workspace.DefaultTargetHost, Port: listener.Port}
-		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, workspace.End{}, tunnel.IsLocalPortFree)
-		if err != nil {
-			m.message = err.Error()
-			return
+		added, err := m.owner.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, workspace.End{})
+		m.report(err)
+		for _, forward := range added {
+			m.report(m.owner.StartForward(forward.ID))
 		}
-		m.save()
-		m.start(added[0])
 	}
 }
 
 // forwardTo finds the selected host's local forward to localhost:port.
 func (m Model) forwardTo(port int) (workspace.Forward, bool) {
-	for _, forward := range m.forwards() {
-		if forward.Direction == workspace.Local && forward.Target == (workspace.End{Host: workspace.DefaultTargetHost, Port: port}) {
-			return forward, true
-		}
-	}
-	return workspace.Forward{}, false
+	return m.state.ListenerForward(m.selectedHost(), port)
 }
 
 // visibleListeners are the selected host's fetched listeners, by default only
@@ -483,11 +480,11 @@ func (m *Model) submit() error {
 	f := m.form
 	switch f.kind {
 	case formAddHost:
-		if err := m.workspace.AddHost(f.value(0)); err != nil {
+		if err := m.owner.AddHost(f.value(0)); err != nil {
 			return err
 		}
-		m.save()
-		m.selectHost(f.value(0))
+		m.refresh()
+		m.selectHost(strings.TrimSpace(f.value(0)))
 		return nil
 	case formAddForward:
 		targets, err := workspace.ParseTargets(f.value(0))
@@ -498,16 +495,17 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bind, tunnel.IsLocalPortFree)
-		if err != nil {
+		added, err := m.owner.AddForwards(m.selectedHost(), f.direction, targets, bind)
+		if len(added) == 0 {
 			return err
 		}
-		m.save()
+		m.report(err)
 		for _, forward := range added {
-			m.start(forward)
+			m.report(m.owner.StartForward(forward.ID))
 		}
+		m.refresh()
 		m.focus = panelForwards
-		m.forwardIndex = len(m.workspace.ForwardsOf(m.selectedHost())) - 1
+		m.forwardIndex = len(m.forwards()) - 1
 		return nil
 	case formEditForward:
 		targets, err := workspace.ParseTargets(f.value(0))
@@ -521,47 +519,21 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		// Change the workspace first, so a refused edit leaves the forward
-		// running as it was; the running forward's own local port counts as
-		// free, since the restart releases it.
-		wasRunning := m.supervisor.IsRunning(f.forwardID)
-		isFree := tunnel.IsLocalPortFree
-		if old, ok := m.forward(f.forwardID); ok && wasRunning && old.Direction == workspace.Local && !old.Bind.IsSocket() {
-			isFree = func(port int) bool { return port == old.Bind.Port || tunnel.IsLocalPortFree(port) }
-		}
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, isFree)
-		if err != nil {
-			return err
-		}
-		m.save()
-		m.supervisor.Stop(f.forwardID)
-		delete(m.failures, f.forwardID)
-		if wasRunning {
-			m.start(forward)
-		}
-		return nil
+		_, err = m.owner.EditForward(f.forwardID, targets[0], bind)
+		return err
 	}
 	return nil
 }
 
 // toggle stops a running forward and starts a stopped or failed one.
 func (m *Model) toggle(forward workspace.Forward) {
-	if m.supervisor.IsRunning(forward.ID) {
-		m.supervisor.Stop(forward.ID)
-		delete(m.failures, forward.ID)
-		return
-	}
-	m.start(forward)
+	m.report(m.owner.ToggleForward(forward.ID))
 }
 
-func (m *Model) start(forward workspace.Forward) {
-	delete(m.failures, forward.ID)
-	m.supervisor.Start(forward)
-}
-
-func (m *Model) save() {
-	if err := m.store.Save(m.workspace); err != nil {
-		m.message = "save workspace: " + err.Error()
+// report shows a failed operation's error.
+func (m *Model) report(err error) {
+	if err != nil {
+		m.message = err.Error()
 	}
 }
 
@@ -588,11 +560,11 @@ func (m *Model) move(delta int) {
 }
 
 func (m Model) hosts() []workspace.Host {
-	return m.workspace.Hosts(m.sshConfigHosts)
+	return m.state.Hosts
 }
 
 func (m Model) forwards() []workspace.Forward {
-	return m.workspace.ForwardsOf(m.selectedHost())
+	return m.state.ForwardsOf(m.selectedHost())
 }
 
 func (m Model) selectedHostEntry() (workspace.Host, bool) {
@@ -608,15 +580,6 @@ func (m Model) selectedHost() string {
 	return host.Name
 }
 
-// forward finds a forward of any host by ID.
-func (m Model) forward(id workspace.ForwardID) (workspace.Forward, bool) {
-	i := slices.IndexFunc(m.workspace.Forwards, func(f workspace.Forward) bool { return f.ID == id })
-	if i < 0 {
-		return workspace.Forward{}, false
-	}
-	return m.workspace.Forwards[i], true
-}
-
 func (m Model) selectedForward() (workspace.Forward, bool) {
 	forwards := m.forwards()
 	if m.forwardIndex >= len(forwards) {
@@ -629,7 +592,7 @@ func (m Model) selectedForward() (workspace.Forward, bool) {
 func (m Model) liveForwards() []workspace.Forward {
 	var live []workspace.Forward
 	for _, host := range m.hosts() {
-		for _, forward := range m.workspace.ForwardsOf(host.Name) {
+		for _, forward := range m.state.ForwardsOf(host.Name) {
 			if m.status(forward) != statusStopped {
 				live = append(live, forward)
 			}

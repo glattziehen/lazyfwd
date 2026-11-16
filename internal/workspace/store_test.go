@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -11,19 +12,43 @@ import (
 
 func TestLockRefusesSecondHolderUntilReleased(t *testing.T) {
 	store := FileStore{Path: filepath.Join(t.TempDir(), "workspace.json")}
-	release, err := store.Lock()
+	lock, err := store.Lock()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Lock(); err == nil {
-		t.Fatal("second Lock succeeded while the first was held")
+	if _, err := store.Lock(); !errors.Is(err, ErrLocked) {
+		t.Fatalf("second Lock while the first was held: %v, want ErrLocked", err)
 	}
-	release()
-	releaseAgain, err := store.Lock()
+	lock.Release()
+	lockAgain, err := store.Lock()
 	if err != nil {
 		t.Fatalf("Lock after release: %v", err)
 	}
-	releaseAgain()
+	lockAgain.Release()
+}
+
+// A client finds the running owner through the address in the lock file; a
+// crashed owner's address must not outlive the next Lock.
+func TestLockForgetsTheLastHoldersAddress(t *testing.T) {
+	store := FileStore{Path: filepath.Join(t.TempDir(), "workspace.json")}
+	lock, err := store.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lock.SetHolderAddress("/run/old/control"); err != nil {
+		t.Fatal(err)
+	}
+	lock.Release()
+
+	lock, err = store.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Release()
+
+	if address, err := store.HolderAddress(); address != "" || err != nil {
+		t.Fatalf("address = %q, %v; want empty", address, err)
+	}
 }
 
 // Files written before socket support must load unchanged.

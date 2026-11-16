@@ -1,0 +1,9 @@
+[
+  {
+    "name": "box",
+    "pinned": true,
+    "in_ssh_config": false,
+    "added": true,
+    "forwards": 3
+  }
+]

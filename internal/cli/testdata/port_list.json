@@ -1,0 +1,19 @@
+{
+  "host": "box",
+  "ports": [
+    {
+      "port": 4966,
+      "process": "diffle",
+      "owned": true,
+      "forward_id": 1
+    },
+    {
+      "port": 8080,
+      "process": "node",
+      "owned": true,
+      "forward_id": null
+    }
+  ],
+  "hidden_ports": 1,
+  "own_only": false
+}
