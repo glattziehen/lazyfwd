@@ -5,7 +5,7 @@ project_name: lazyfwd
 builds:
   - env:
       - CGO_ENABLED=0
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     flags: [-trimpath]
     # lazyfwd embeds its version from VERSION, so no -X flags.
@@ -13,6 +13,10 @@ builds:
 
 archives:
   - formats: [tar.gz]
+    # Windows users open zip archives without extra tools.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files: [LICENSE, README.md]
 
