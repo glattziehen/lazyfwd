@@ -10,19 +10,30 @@ lazyfwd supports Linux and macOS laptops; in WSL it runs as on Linux. Windows it
 
 The remote host can be Linux (with `ss`, `netstat`, or only `/proc`), macOS, or a BSD. lazyfwd lists a remote host's listening ports with whichever of `ss`, `netstat`, `sockstat`, `lsof`, or `/proc/net/tcp` the host has. On a host without a POSIX `sh`, such as Windows, the Listening panel says it cannot list ports; forwards you add by hand work everywhere.
 
+<!-- Screenshot goes here. -->
+
 ## Install
 
-With Go 1.24 or later:
+lazyfwd runs on Linux and macOS and needs `ssh` on your `PATH`.
+
+**Release binary.** Download the archive for your system from the [releases page](https://github.com/moritzwilksch/lazyfwd/releases), check it against `checksums.txt`, and put `lazyfwd` on your `PATH`:
+
+```sh
+tar -xzf lazyfwd_*_darwin_arm64.tar.gz lazyfwd
+sudo mv lazyfwd /usr/local/bin/
+```
+
+On macOS, a browser download is quarantined; run `xattr -d com.apple.quarantine lazyfwd` if Gatekeeper blocks it.
+
+**go install.** With Go 1.24 or later:
 
 ```sh
 go install github.com/moritzwilksch/lazyfwd@latest
 ```
 
-Without Go, use [pixi](https://pixi.sh) from a checkout:
+**From source.** In a checkout, run `go build .` with Go 1.24 or later, or `pixi run build` with [pixi](https://pixi.sh), which brings its own Go. Both write `./lazyfwd`.
 
-```sh
-pixi run build   # writes ./lazyfwd
-```
+`lazyfwd --version` prints the version.
 
 ## Usage
 
