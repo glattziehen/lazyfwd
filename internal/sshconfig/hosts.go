@@ -12,9 +12,6 @@ import (
 // maxIncludeDepth matches OpenSSH's limit on nested Include directives.
 const maxIncludeDepth = 16
 
-// SystemConfigPath is OpenSSH's system-wide client config on Linux and macOS.
-const SystemConfigPath = "/etc/ssh/ssh_config"
-
 // Hosts lists the aliases named in Host lines of the configs at paths and the
 // files they include. Patterns (*, ?, negations) are skipped since they name
 // no single host, and so are aliases no host name can have, such as systemd's

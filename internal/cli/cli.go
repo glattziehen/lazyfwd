@@ -70,7 +70,7 @@ func Main(args []string, version string) int {
 		stdout:         os.Stdout,
 		stderr:         os.Stderr,
 		storePath:      storePath,
-		sshConfigPaths: []string{filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath},
+		sshConfigPaths: []string{filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath()},
 		runBase:        tunnel.DefaultBaseDir(),
 	})
 }

@@ -7,7 +7,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"syscall"
+
+	"github.com/glattziehen/lazyfwd/internal/lockfile"
 )
 
 // FileStore keeps the workspace in one JSON file.
@@ -86,8 +87,8 @@ type Lock struct {
 
 // Lock claims the workspace for this process until Release is called or the
 // process ends, so two lazyfwd instances never overwrite each other's file.
-// The lock is a flock on a file next to the workspace; the kernel drops it
-// when the process exits, crashes included, so no stale lock survives. It
+// The lock is on a file next to the workspace; the system drops it when the
+// process exits, crashes included, so no stale lock survives. It
 // fails with ErrLocked while another process holds the lock.
 func (s FileStore) Lock() (*Lock, error) {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
@@ -97,8 +98,8 @@ func (s FileStore) Lock() (*Lock, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-	if errors.Is(err, syscall.EWOULDBLOCK) {
+	err = lockfile.TryLock(file)
+	if errors.Is(err, lockfile.ErrLocked) {
 		_ = file.Close()
 		return nil, fmt.Errorf("%w %s", ErrLocked, s.Path)
 	}
