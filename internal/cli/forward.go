@@ -339,7 +339,7 @@ func startOutcome(forwards []owner.ForwardState, isWaiting bool) error {
 		forward, status := state.Forward, state.Status
 		switch {
 		case status.State == tunnel.Failed && status.NeedsLogin:
-			needsLogin = append(needsLogin, fmt.Sprintf("forward %d: %s needs an interactive login: %s; ask a person to run `lazyfwd host login %s` in a terminal, which starts it again", forward.ID, forward.Host, status.Reason, forward.Host))
+			needsLogin = append(needsLogin, fmt.Sprintf("forward %d: %s needs an interactive login; ssh said: %s; ask a person to run `lazyfwd host login %s` in a terminal, which starts it again", forward.ID, forward.Host, strings.TrimSuffix(status.Reason, "."), forward.Host))
 		case status.State == tunnel.Failed:
 			failed = append(failed, fmt.Sprintf("forward %d failed: %s", forward.ID, status.Reason))
 		case status.State == tunnel.Starting && isWaiting:

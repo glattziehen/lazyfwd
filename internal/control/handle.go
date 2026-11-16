@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/glattziehen/lazyfwd/internal/owner"
@@ -145,7 +146,7 @@ func errorOf(err error) *Error {
 	case errors.As(err, &hostNotFound), errors.As(err, &forwardNotFound):
 		return &Error{Kind: ErrorNotFound, Message: err.Error()}
 	case errors.As(err, &connectErr) && connectErr.NeedsLogin:
-		return &Error{Kind: ErrorNeedsLogin, Message: fmt.Sprintf("%s needs an interactive login: %s", connectErr.Host, connectErr.Reason)}
+		return &Error{Kind: ErrorNeedsLogin, Message: fmt.Sprintf("%s needs an interactive login; ssh said: %s", connectErr.Host, strings.TrimSuffix(connectErr.Reason, "."))}
 	}
 	return &Error{Kind: ErrorFailed, Message: err.Error()}
 }
