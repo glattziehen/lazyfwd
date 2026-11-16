@@ -116,3 +116,50 @@ func TestAddHostRejectsNameThatSSHReadsAsOption(t *testing.T) {
 		t.Fatal("AddHost accepted a name starting with -")
 	}
 }
+
+// Two forwards cannot listen on the same end: the master keeps one listener,
+// so stopping either would close the other's.
+func TestListeningEndsMustNotRepeat(t *testing.T) {
+	port := End{Host: BindHost, Port: 47890}
+	socket := End{Path: "/tmp/app.sock"}
+	target := []End{{Host: "localhost", Port: 8811}}
+	cases := []struct {
+		name            string
+		firstHost, host string
+		firstDir, dir   Direction
+		bind            End
+		wantRefused     bool
+	}{
+		{"local port, other host", "a", "b", Local, Local, port, true},
+		{"local socket, other host", "a", "b", Local, Local, socket, true},
+		{"remote port, same host", "a", "a", Remote, Remote, port, true},
+		{"remote socket, same host", "a", "a", Remote, Remote, socket, true},
+		{"remote port, other host", "a", "b", Remote, Remote, port, false},
+		{"local and remote port", "a", "a", Local, Remote, port, false},
+	}
+	for _, c := range cases {
+		var ws Workspace
+		if _, err := ws.AddForwards(c.firstHost, c.firstDir, target, c.bind, allFree); err != nil {
+			t.Fatal(err)
+		}
+		_, err := ws.AddForwards(c.host, c.dir, target, c.bind, allFree)
+		if isRefused := err != nil; isRefused != c.wantRefused {
+			t.Errorf("%s: refused %v (%v), want %v", c.name, isRefused, err, c.wantRefused)
+		}
+	}
+}
+
+func TestEditCannotTakeAnotherForwardsListeningEnd(t *testing.T) {
+	var ws Workspace
+	_, _ = ws.AddForwards("a", Local, []End{{Host: "localhost", Port: 8811}}, End{Host: BindHost, Port: 47890}, allFree)
+	added, _ := ws.AddForwards("a", Local, []End{{Host: "localhost", Port: 8812}}, End{Host: BindHost, Port: 47891}, allFree)
+
+	_, err := ws.UpdateForward(added[0].ID, End{Host: "localhost", Port: 8812}, End{Host: BindHost, Port: 47890}, allFree)
+
+	if err == nil {
+		t.Fatal("edit took another forward's local port")
+	}
+	if _, err := ws.UpdateForward(added[0].ID, End{Host: "localhost", Port: 8813}, End{Host: BindHost, Port: 47891}, allFree); err != nil {
+		t.Fatalf("edit refused the forward's own local port: %v", err)
+	}
+}

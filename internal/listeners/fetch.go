@@ -44,12 +44,12 @@ var listCommand = "sh -c '" + strings.Join([]string{
 type Runner func(ctx context.Context, host, command string) (string, error)
 
 // Fetch lists the ports listening on host with one remote command.
-func Fetch(run Runner, host string) ([]Listener, error) {
+func Fetch(run Runner, host string) (Listing, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
 	stdout, runErr := run(ctx, host, listCommand)
 	if ctx.Err() != nil {
-		return nil, fmt.Errorf("listing ports on %s timed out after %s", host, fetchTimeout)
+		return Listing{}, fmt.Errorf("listing ports on %s timed out after %s", host, fetchTimeout)
 	}
 	// The script's output decides, whatever its exit status: a missing
 	// /proc/net/tcp6, for one, fails cat after the ports are printed.
@@ -61,7 +61,7 @@ func Fetch(run Runner, host string) ([]Listener, error) {
 	// sh to run it; any other failure is ssh's.
 	var exitErr *exec.ExitError
 	if runErr != nil && !errors.As(runErr, &exitErr) {
-		return nil, fmt.Errorf("listing ports on %s failed: %w", host, runErr)
+		return Listing{}, fmt.Errorf("listing ports on %s failed: %w", host, runErr)
 	}
-	return nil, fmt.Errorf("cannot list ports on %s: %w", host, parseErr)
+	return Listing{}, fmt.Errorf("cannot list ports on %s: %w", host, parseErr)
 }

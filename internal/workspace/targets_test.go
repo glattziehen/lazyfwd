@@ -24,7 +24,7 @@ func TestParseTargets(t *testing.T) {
 func TestParseTargetsRejectsInvalidInput(t *testing.T) {
 	for _, text := range []string{
 		"", "0", "70000", "x", "4968-4966", ":80", "1-1000",
-		"~/app.sock", "run/app.sock", "/tmp/my app.sock", "/tmp/it's.sock", "/" + strings.Repeat("x", 103),
+		"~/app.sock", "run/app.sock", "/tmp/my app.sock", "/tmp/it's.sock", "/tmp/app%h.sock", "/" + strings.Repeat("x", 103),
 	} {
 		if _, err := ParseTargets(text); err == nil {
 			t.Errorf("ParseTargets(%q) succeeded, want error", text)

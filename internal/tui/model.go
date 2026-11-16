@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -35,6 +36,8 @@ type exitedMsg tunnel.Exited
 // listenerResult is one fetch of a host's listening ports.
 type listenerResult struct {
 	listeners []listeners.Listener
+	// isOwnOnly is set when the host listed only the ssh user's own ports.
+	isOwnOnly bool
 	err       error
 	isLoading bool
 }
@@ -139,9 +142,35 @@ func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 			m.isShowingHelp = false // any key closes the help
 			return m, nil
 		}
+		if isMovementBurst(msg) {
+			for _, key := range msg.Runes {
+				m, _ = m.updateKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{key}})
+			}
+			return m, nil
+		}
 		return m.updateKey(msg)
 	}
 	return m, nil
+}
+
+// movementKeys only move a cursor, so running them from a burst is safe.
+const movementKeys = "jkgG<>.,"
+
+// isMovementBurst reports whether msg holds several typed keys that all move
+// a cursor. bubbletea delivers keys that arrive in one read, such as key
+// repeat over a slow connection, as one message. A terminal without
+// bracketed paste delivers a paste the same way, so a burst holding any key
+// that acts, such as d or q, stays ignored.
+func isMovementBurst(msg tea.KeyMsg) bool {
+	if msg.Type != tea.KeyRunes || msg.Paste || len(msg.Runes) < 2 {
+		return false
+	}
+	for _, key := range msg.Runes {
+		if !strings.ContainsRune(movementKeys, key) {
+			return false
+		}
+	}
+	return true
 }
 
 func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -224,8 +253,8 @@ func (m *Model) fetchListenersOf(host string) tea.Cmd {
 	m.listenerResults[host] = listenerResult{isLoading: true}
 	run := m.supervisor.Run
 	return func() tea.Msg {
-		found, err := listeners.Fetch(run, host)
-		return listenersMsg{host: host, result: listenerResult{listeners: found, err: err}}
+		listing, err := listeners.Fetch(run, host)
+		return listenersMsg{host: host, result: listenerResult{listeners: listing.Listeners, isOwnOnly: listing.IsOwnOnly, err: err}}
 	}
 }
 
@@ -487,15 +516,21 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		// Stop first so the forward's own local port counts as free again.
+		// Change the workspace first, so a refused edit leaves the forward
+		// running as it was; the running forward's own local port counts as
+		// free, since the restart releases it.
 		wasRunning := m.supervisor.IsRunning(f.forwardID)
-		m.supervisor.Stop(f.forwardID)
-		delete(m.failures, f.forwardID)
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, tunnel.IsLocalPortFree)
+		isFree := tunnel.IsLocalPortFree
+		if old, ok := m.forward(f.forwardID); ok && wasRunning && old.Direction == workspace.Local && !old.Bind.IsSocket() {
+			isFree = func(port int) bool { return port == old.Bind.Port || tunnel.IsLocalPortFree(port) }
+		}
+		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, isFree)
 		if err != nil {
 			return err
 		}
 		m.save()
+		m.supervisor.Stop(f.forwardID)
+		delete(m.failures, f.forwardID)
 		if wasRunning {
 			m.start(forward)
 		}

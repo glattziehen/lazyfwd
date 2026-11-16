@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,6 +20,12 @@ const (
 	masterCheckInterval = 2 * time.Second
 	// probeTimeout bounds the check whether something listens on the host.
 	probeTimeout = 5 * time.Second
+	// masterOpenTimeout bounds opening a master without prompts. ssh's
+	// ConnectTimeout stops counting once the server sends its banner, so a
+	// server that stalls after that would hang the connect for good.
+	masterOpenTimeout = 20 * time.Second
+	// controlTimeout bounds a control command to the master.
+	controlTimeout = 10 * time.Second
 )
 
 // ConnectError reports that a host's connection could not open.
@@ -45,13 +52,17 @@ type established struct {
 // connection owns one host's master and the forwards on it. Its run loop is
 // the only goroutine that touches its fields, so operations on one host
 // happen in the order they were sent: an edit's cancel precedes its new
-// forward.
+// forward. The queue has no bound, so sending an operation never waits,
+// however slow the host.
 type connection struct {
 	host       string
 	socketPath string
 	logPath    string
 	supervisor *Supervisor
-	operations chan func()
+	// mu guards queue; wake tells the run loop that queue grew.
+	mu    sync.Mutex
+	queue []func()
+	wake  chan struct{}
 	// quit asks the run loop to close the master; closed reports it did.
 	quit   chan struct{}
 	closed chan struct{}
@@ -59,6 +70,10 @@ type connection struct {
 	// masterPID is 0 while no master is known.
 	masterPID   int
 	established map[workspace.ForwardID]established
+	// failedOpen is the last failed attempt to open the master; operations
+	// queued before it ended share its error instead of trying again.
+	failedOpen   error
+	failedOpenAt time.Time
 }
 
 func newConnection(supervisor *Supervisor, host, socketPath string) *connection {
@@ -67,7 +82,7 @@ func newConnection(supervisor *Supervisor, host, socketPath string) *connection 
 		socketPath:  socketPath,
 		logPath:     socketPath + logExt,
 		supervisor:  supervisor,
-		operations:  make(chan func(), 256),
+		wake:        make(chan struct{}, 1),
 		quit:        make(chan struct{}),
 		closed:      make(chan struct{}),
 		established: map[workspace.ForwardID]established{},
@@ -76,19 +91,48 @@ func newConnection(supervisor *Supervisor, host, socketPath string) *connection 
 	return c
 }
 
+// enqueue adds an operation for the run loop without waiting.
+func (c *connection) enqueue(operation func()) {
+	c.mu.Lock()
+	c.queue = append(c.queue, operation)
+	c.mu.Unlock()
+	select {
+	case c.wake <- struct{}{}:
+	default: // a wake-up is already pending
+	}
+}
+
+func (c *connection) next() (func(), bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.queue) == 0 {
+		return nil, false
+	}
+	operation := c.queue[0]
+	c.queue = c.queue[1:]
+	return operation, true
+}
+
 func (c *connection) run() {
 	ticker := time.NewTicker(masterCheckInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case operation := <-c.operations:
-			operation()
-		case <-ticker.C:
-			c.noticeMasterDeath()
 		case <-c.quit:
 			c.closeMaster()
 			close(c.closed)
 			return
+		default:
+		}
+		if operation, ok := c.next(); ok {
+			operation()
+			continue
+		}
+		select {
+		case <-c.wake:
+		case <-ticker.C:
+			c.noticeMasterDeath()
+		case <-c.quit:
 		}
 	}
 }
@@ -101,11 +145,11 @@ func (c *connection) close() {
 
 // start puts the forward on the master, opening the master first if needed,
 // unless the forward was stopped or restarted since generation began.
-func (c *connection) start(ctx context.Context, forward workspace.Forward, generation uint64) {
+func (c *connection) start(ctx context.Context, forward workspace.Forward, generation uint64, queuedAt time.Time) {
 	if !c.supervisor.isCurrent(forward.ID, generation) {
 		return
 	}
-	if err := c.ensureMaster(ctx); err != nil {
+	if err := c.ensureMaster(ctx, queuedAt); err != nil {
 		var connectErr *ConnectError
 		if errors.As(err, &connectErr) {
 			c.supervisor.fail(forward.ID, generation, connectErr.Reason, connectErr.NeedsLogin)
@@ -121,9 +165,9 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 		c.supervisor.fail(forward.ID, generation, err.Error(), false)
 		return
 	}
-	output, err := exec.Command("ssh", forwardArgs(c.socketPath, forward)...).CombinedOutput()
+	output, err := runControl(ctx, forwardArgs(c.socketPath, forward))
 	if err != nil && c.removeStaleRemoteSocket(ctx, forward) {
-		output, err = exec.Command("ssh", forwardArgs(c.socketPath, forward)...).CombinedOutput()
+		output, err = runControl(ctx, forwardArgs(c.socketPath, forward))
 	}
 	if err != nil {
 		c.supervisor.fail(forward.ID, generation, controlFailure(string(output)), false)
@@ -181,7 +225,8 @@ func (c *connection) removeStaleRemoteSocket(ctx context.Context, forward worksp
 		return false
 	}
 	command := removeSocketCommand(forward.Bind.Path)
-	return exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, c.host, command)...).Run() == nil
+	_, err := runControl(ctx, remoteCommandArgs(c.socketPath, c.host, command))
+	return err == nil
 }
 
 // stop takes the forward off the master.
@@ -191,16 +236,30 @@ func (c *connection) stop(id workspace.ForwardID) {
 		return
 	}
 	delete(c.established, id)
-	_ = exec.Command("ssh", cancelArgs(c.socketPath, entry.forward)...).Run()
+	_, _ = runControl(c.supervisor.ctx, cancelArgs(c.socketPath, entry.forward))
 }
 
 // ensureMaster makes sure a live master serves the socket: the known one, one
-// an interactive login left there, or a new one opened without prompts.
-func (c *connection) ensureMaster(ctx context.Context) error {
+// an interactive login left there, or a new one opened without prompts. An
+// operation queued at queuedAt, before the last failed attempt ended, gets
+// that attempt's error, so forwards queued on a dead host fail together.
+func (c *connection) ensureMaster(ctx context.Context, queuedAt time.Time) error {
 	c.noticeMasterDeath()
 	if c.masterPID != 0 {
 		return nil
 	}
+	if c.failedOpen != nil && queuedAt.Before(c.failedOpenAt) {
+		return c.failedOpen
+	}
+	err := c.openMaster(ctx)
+	// Share only what the host answered, not the end of one caller's context.
+	if ctx.Err() == nil {
+		c.failedOpen, c.failedOpenAt = err, time.Now()
+	}
+	return err
+}
+
+func (c *connection) openMaster(ctx context.Context) error {
 	if pid, ok := c.checkMaster(); ok {
 		c.masterPID = pid
 		return nil
@@ -209,7 +268,20 @@ func (c *connection) ensureMaster(ctx context.Context) error {
 	_ = os.Remove(c.socketPath)
 	_ = os.Remove(c.logPath)
 	// ssh -f returns once authenticated and leaves the master running.
-	err := exec.CommandContext(ctx, "ssh", batchMasterArgs(c.socketPath, c.logPath, c.host)...).Run()
+	openCtx, cancel := context.WithTimeout(ctx, masterOpenTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(openCtx, "ssh", batchMasterArgs(c.socketPath, c.logPath, c.host)...)
+	// ssh prints some errors, such as a config error, before -E opens the
+	// log, so its stderr goes to the log too. A file, unlike a pipe, does not
+	// keep Run waiting for the master that ssh -f leaves running.
+	if log, err := os.OpenFile(c.logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600); err == nil {
+		defer log.Close()
+		cmd.Stderr = log
+	}
+	err := cmd.Run()
+	if errors.Is(openCtx.Err(), context.DeadlineExceeded) {
+		return &ConnectError{Host: c.host, Reason: fmt.Sprintf("%s did not finish connecting within %s", c.host, masterOpenTimeout)}
+	}
 	if err != nil {
 		return connectError(c.host, c.logPath, err)
 	}
@@ -247,7 +319,8 @@ func (c *connection) noticeMasterDeath() {
 // connection opened it or a login did.
 func (c *connection) closeMaster() {
 	if _, err := os.Stat(c.socketPath); err == nil {
-		_ = exec.Command("ssh", controlArgs(c.socketPath, "exit", c.host)...).Run()
+		// The supervisor's context has ended by now.
+		_, _ = runControl(context.Background(), controlArgs(c.socketPath, "exit", c.host))
 	}
 	c.masterPID = 0
 	clear(c.established)

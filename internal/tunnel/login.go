@@ -1,10 +1,12 @@
 package tunnel
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"time"
 )
 
 // errLoginCancelled reports that ssh ended on a signal, such as ctrl+c at
@@ -51,8 +53,18 @@ func checkMaster(socketPath, host string) (int, bool) {
 	if _, err := os.Stat(socketPath); err != nil {
 		return 0, false
 	}
-	output, _ := exec.Command("ssh", controlArgs(socketPath, "check", host)...).CombinedOutput()
+	output, _ := runControl(context.Background(), controlArgs(socketPath, "check", host))
 	return masterPID(string(output))
+}
+
+// runControl runs a short ssh command, such as a control command to a
+// master, and ends it after controlTimeout or when ctx ends.
+func runControl(ctx context.Context, args []string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, controlTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	cmd.WaitDelay = time.Second
+	return cmd.CombinedOutput()
 }
 
 // connectError explains a failed master from its log.

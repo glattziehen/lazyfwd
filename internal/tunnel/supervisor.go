@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
@@ -82,7 +83,8 @@ func (s *Supervisor) Start(forward workspace.Forward) {
 	c := s.connection(forward.Host)
 	// Send unlocked: the connection takes s.mu while it works.
 	s.mu.Unlock()
-	c.operations <- func() { c.start(s.ctx, forward, generation) }
+	queuedAt := time.Now()
+	c.enqueue(func() { c.start(s.ctx, forward, generation, queuedAt) })
 }
 
 // Stop closes the forward; stopping a stopped forward is a no-op.
@@ -96,7 +98,7 @@ func (s *Supervisor) Stop(id workspace.ForwardID) {
 	delete(s.running, id)
 	c := s.connection(entry.forward.Host)
 	s.mu.Unlock()
-	c.operations <- func() { c.stop(id) }
+	c.enqueue(func() { c.stop(id) })
 }
 
 // StopAll closes every connection, which ends all forwards, and removes the
@@ -151,8 +153,13 @@ func (s *Supervisor) Run(ctx context.Context, host, command string) (string, err
 	}
 	c := s.connection(host)
 	s.mu.Unlock()
+	// End the connect and the command when StopAll begins, too.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer context.AfterFunc(s.ctx, cancel)()
 	connected := make(chan error, 1)
-	c.operations <- func() { connected <- c.ensureMaster(ctx) }
+	queuedAt := time.Now()
+	c.enqueue(func() { connected <- c.ensureMaster(ctx, queuedAt) })
 	select {
 	case err := <-connected:
 		if err != nil {

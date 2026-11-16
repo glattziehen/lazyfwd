@@ -37,6 +37,7 @@ func (s FileStore) Load() (Workspace, error) {
 	if err := json.Unmarshal(content, &workspace); err != nil {
 		return workspace, fmt.Errorf("parse %s: %w", s.Path, err)
 	}
+	workspace.repairIDs()
 	return workspace, nil
 }
 
@@ -49,11 +50,24 @@ func (s FileStore) Save(workspace Workspace) error {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
 		return err
 	}
-	tmp := s.Path + ".tmp"
-	if err := os.WriteFile(tmp, append(content, '\n'), 0o644); err != nil {
+	// Write to a symlink's target, as dotfiles managers link the file, and
+	// keep the file's mode.
+	path, mode := s.Path, fs.FileMode(0o644)
+	if resolved, err := filepath.EvalSymlinks(s.Path); err == nil {
+		path = resolved
+	}
+	if info, err := os.Stat(path); err == nil {
+		mode = info.Mode().Perm()
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(content, '\n'), mode); err != nil {
 		return err
 	}
-	return os.Rename(tmp, s.Path)
+	// WriteFile's mode passes through the umask.
+	if err := os.Chmod(tmp, mode); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 // Lock claims the workspace for this process until release is called or the

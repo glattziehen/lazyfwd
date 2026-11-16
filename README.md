@@ -39,10 +39,10 @@ go install github.com/moritzwilksch/lazyfwd@latest
 
 Run `lazyfwd`. The screen has four panels, numbered by their key:
 
-0. **Live** forwards of all hosts, across the top: every running or failed forward, so you can start, stop, open, or edit it without picking its host first. A stopped forward leaves the list; a failed one stays, with ssh's error in the footer, until you restart or delete it. `enter` shows the forward in its host's Forwards panel.
+0. **Live** forwards of all hosts, across the top: every running or failed forward, so you can start, stop, open, or edit it without picking its host first. A stopped forward leaves the list; a failed one stays, with the reason in the footer, until you restart or delete it. `enter` shows the forward in its host's Forwards panel.
 1. **Hosts**: the hosts of your ssh config plus hosts you add. Pinned hosts (`*`) sort first. `● 2  ✗ 1` counts a host's running and failed forwards.
-2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads local end, arrow, remote end; `→` is a local forward and `←` a remote one. The local end is a clickable link in terminals that support OSC 8 hyperlinks: `https://` when the target port is 443 or 8443, `http://` otherwise, and no link for well-known non-web ports such as 22, 3306, 5432, or 6379.
-3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and local end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled and Docker's published ports, which belong to root; the panel's last line counts the hidden ports, and `t` shows all ports, with `-` in place of the process name for other users' services. On a Linux host with neither `ss` nor `netstat`, no port has a process name, so only `t` shows them.
+2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows why). Each row reads local end, arrow, remote end; `→` is a local forward and `←` a remote one. The local end is a clickable link in terminals that support OSC 8 hyperlinks: `https://` when the target port is 443 or 8443, `http://` otherwise, and no link for well-known non-web ports such as 22, 3306, 5432, or 6379.
+3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and local end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled and Docker's published ports, which belong to root; the panel's last line counts the hidden ports, and `t` shows all ports, with `-` in place of the process name for other users' services. On a Linux host with neither `ss` nor `netstat`, no port has a process name, so only `t` shows them. macOS 27 shows a user without root only their own ports, so there `t` adds nothing, and the panel says so.
 
 Colours come from your terminal's 16-colour palette, so your theme applies: green is running, red is failed, faint text is stopped or a hint, cyan marks the focused panel, blue a clickable local end, and yellow a pin.
 
@@ -50,7 +50,7 @@ Every forward has a local end, on this machine, and a remote end, on the host. A
 
 Add a local forward with `a`. The remote end can be one port, a range, or a list: `4966-4968`, `8080`, `db:5432`. Leave the local end empty and lazyfwd picks a port: the target port if it is free, otherwise the nearest free port. For example, `4966-4968` with 4966 taken on the local machine gives 4965, 4967, 4968. Set the local end to choose the port yourself.
 
-Add a remote forward with `A`. Its remote end defaults to the target port.
+Add a remote forward with `A`. Its remote end defaults to the target port. Two forwards cannot listen on the same end: the same local port or socket on this machine, or the same remote port or socket on one host.
 
 `e` edits a forward. The form shows a port on localhost as the port alone, so changing it means replacing one word.
 
@@ -64,7 +64,7 @@ Either end of a forward can be a unix socket instead of a TCP port, in both dire
 - local forward, remote end `8080`, local end `/tmp/app.sock`: a local socket that reaches port 8080 on the host.
 - remote forward, local end `/run/user/1000/app.sock`, remote end `/tmp/app.sock`: a socket on the host that reaches a local one.
 
-A socket path must be absolute and may hold only letters, digits, and `/ . _ + @ % = -`, at most 103 bytes. ssh expands neither `~` nor relative paths on either end, so lazyfwd refuses them. When the target is a socket, there is no port to copy, so set the listening end yourself.
+A socket path must be absolute and may hold only letters, digits, and `/ . _ + @ = -`, at most 103 bytes. ssh expands neither `~` nor relative paths on either end, so lazyfwd refuses them, and it would expand `%` tokens such as `%h` into another path. When the target is a socket, there is no port to copy, so set the listening end yourself.
 
 A socket end shows its path. Only a TCP local end is a link, and `o` on a socket end says why it cannot open.
 

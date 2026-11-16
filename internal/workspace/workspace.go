@@ -117,7 +117,7 @@ func (w *Workspace) AddForwards(host string, direction Direction, targets []End,
 	if bind != (End{}) && len(targets) > 1 {
 		return nil, fmt.Errorf("set the listening end only for a single target, got %d targets", len(targets))
 	}
-	binds, err := w.binds(direction, targets, bind, isFree, 0)
+	binds, err := w.binds(host, direction, targets, bind, isFree, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree fun
 		return Forward{}, ErrForwardNotFound
 	}
 	forward := w.Forwards[i]
-	binds, err := w.binds(forward.Direction, []End{target}, bind, isFree, id)
+	binds, err := w.binds(forward.Host, forward.Direction, []End{target}, bind, isFree, id)
 	if err != nil {
 		return Forward{}, err
 	}
@@ -147,14 +147,59 @@ func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree fun
 	return forward, nil
 }
 
+// repairIDs gives every forward its own positive ID and moves NextID above
+// all of them. A hand-edited or merged file can lack next_id or repeat an ID,
+// which would let a new forward share an ID and one delete remove both. IDs
+// are internal and nothing else refers to them, so renumbering a repeat keeps
+// every forward and loses nothing.
+func (w *Workspace) repairIDs() {
+	for _, forward := range w.Forwards {
+		w.NextID = max(w.NextID, forward.ID)
+	}
+	isTaken := map[ForwardID]bool{}
+	for i, forward := range w.Forwards {
+		if forward.ID <= 0 || isTaken[forward.ID] {
+			w.NextID++
+			w.Forwards[i].ID = w.NextID
+		}
+		isTaken[w.Forwards[i].ID] = true
+	}
+}
+
 // DeleteForward removes a forward; deleting an unknown forward is a no-op.
 func (w *Workspace) DeleteForward(id ForwardID) {
 	w.Forwards = slices.DeleteFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
 }
 
-// binds resolves the bind of each target. Local ports held by other forwards,
-// running or not, count as taken, so starting them later cannot collide.
-func (w Workspace) binds(direction Direction, targets []End, bind End, isFree func(int) bool, editedID ForwardID) ([]End, error) {
+// binds resolves the bind of each target and refuses one that another
+// forward listens on.
+func (w Workspace) binds(host string, direction Direction, targets []End, bind End, isFree func(int) bool, editedID ForwardID) ([]End, error) {
+	binds, err := w.pickBinds(direction, targets, bind, isFree, editedID)
+	if err != nil {
+		return nil, err
+	}
+	for i, bind := range binds {
+		if slices.Contains(binds[:i], bind) || w.isListeningOn(host, direction, bind, editedID) {
+			return nil, fmt.Errorf("another forward already listens on the %s end %s", listeningSide(direction), bind)
+		}
+	}
+	return binds, nil
+}
+
+// isListeningOn reports whether a forward other than editedID listens on
+// bind: on the local machine for any host, or on host itself. The master
+// keeps one listener for two identical forwards, so stopping either would
+// close the other's.
+func (w Workspace) isListeningOn(host string, direction Direction, bind End, editedID ForwardID) bool {
+	return slices.ContainsFunc(w.Forwards, func(f Forward) bool {
+		return f.ID != editedID && f.Direction == direction && f.Bind == bind && (direction == Local || f.Host == host)
+	})
+}
+
+// pickBinds returns the given bind, or picks one per target. Local ports held
+// by other forwards, running or not, count as taken, so starting them later
+// cannot collide.
+func (w Workspace) pickBinds(direction Direction, targets []End, bind End, isFree func(int) bool, editedID ForwardID) ([]End, error) {
 	if bind != (End{}) {
 		return []End{bind}, nil
 	}
