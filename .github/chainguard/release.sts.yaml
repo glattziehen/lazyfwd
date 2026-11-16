@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/octo-sts/app/refs/heads/main/pkg/octosts/octosts.TrustPolicy.json
 issuer: https://token.actions.githubusercontent.com
-subject: repo:moritzwilksch@58488209/lazyfwd@1460036281:ref:refs/heads/main
+subject: repo:glattziehen@332107433/lazyfwd@1460036281:ref:refs/heads/main
 claim_pattern:
   event_name: ^(push|workflow_dispatch)$
-  job_workflow_ref: ^moritzwilksch/lazyfwd/\.github/workflows/release\.yml@refs/heads/main$
+  job_workflow_ref: ^glattziehen/lazyfwd/\.github/workflows/release\.yml@refs/heads/main$
 
 permissions:
   contents: write
