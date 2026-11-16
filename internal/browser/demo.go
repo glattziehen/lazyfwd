@@ -1,0 +1,2 @@
+package browser
+func Demo( ) {   }
