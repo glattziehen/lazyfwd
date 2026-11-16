@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,7 +25,12 @@ func newLiveModel(t *testing.T, failed ...workspace.ForwardID) Model {
 			t.Fatal(err)
 		}
 	}
-	m := New(discardStore{}, tunnel.NewSupervisor(), ws, nil)
+	supervisor, err := tunnel.NewSupervisor(filepath.Join(t.TempDir(), "run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(supervisor.StopAll)
+	m := New(discardStore{}, supervisor, ws, nil)
 	m = send(m, keyMsg("0"))
 	for _, id := range failed {
 		m = send(m, exitedMsg{ID: id, Reason: "boom"})

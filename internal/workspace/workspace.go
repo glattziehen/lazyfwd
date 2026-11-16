@@ -69,6 +69,9 @@ func (w *Workspace) AddHost(name string) error {
 	if name == "" || strings.ContainsAny(name, " \t") {
 		return fmt.Errorf("host must be an ssh destination without spaces, got %q", name)
 	}
+	if strings.HasPrefix(name, "-") {
+		return fmt.Errorf("host must not start with -, which ssh reads as an option, got %q", name)
+	}
 	if !slices.Contains(w.ManualHosts, name) {
 		w.ManualHosts = append(w.ManualHosts, name)
 	}

@@ -317,7 +317,7 @@ func (m Model) footer() string {
 		if reason, failed := m.failures[forward.ID]; failed {
 			lines = append(lines, styleFailed.Render("✗ ssh failed: "+reason))
 		} else {
-			lines = append(lines, styleMuted.Render("$ ssh "+strings.Join(forward.SSHArgs(), " ")))
+			lines = append(lines, styleMuted.Render("$ ssh -N "+strings.Join(forward.SSHArgs(), " ")+" -- "+forward.Host))
 		}
 	}
 	if m.message != "" {

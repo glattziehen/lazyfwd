@@ -1,0 +1,75 @@
+package tunnel
+
+import (
+	"slices"
+	"testing"
+
+	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+)
+
+func TestEverySSHCallEndsOptionsBeforeTheHost(t *testing.T) {
+	host := "-oProxyCommand=evil"
+	forward := workspace.Forward{Host: host, Direction: workspace.Local, BindPort: 9000, Target: workspace.Addr{Host: "localhost", Port: 8000}}
+	calls := map[string][]string{
+		"batch master": batchMasterArgs("/s", "/s.log", host),
+		"login":        loginArgs("/s", "/s.log", host),
+		"control":      controlArgs("/s", "exit", host),
+		"forward":      forwardArgs("/s", forward),
+		"cancel":       cancelArgs("/s", forward),
+	}
+	for name, args := range calls {
+		if len(args) < 2 || !slices.Equal(args[len(args)-2:], []string{"--", host}) {
+			t.Errorf("%s args end %v, want -- %s", name, args, host)
+		}
+	}
+	remote := remoteCommandArgs("/s", host, "ss -ltn")
+	if !slices.Equal(remote[len(remote)-3:], []string{"--", host, "ss -ltn"}) {
+		t.Errorf("remote command args end %v", remote)
+	}
+}
+
+func TestOnlyTheBatchMasterRefusesPrompts(t *testing.T) {
+	if !slices.Contains(batchMasterArgs("/s", "/s.log", "box"), "BatchMode=yes") {
+		t.Error("batch master may prompt")
+	}
+	if slices.Contains(loginArgs("/s", "/s.log", "box"), "BatchMode=yes") {
+		t.Error("login cannot prompt")
+	}
+}
+
+func TestNeedsLogin(t *testing.T) {
+	cases := []struct {
+		log  string
+		want bool
+	}{
+		{"Host key verification failed.", true},
+		{"user@10.0.0.1: Permission denied (publickey,password).", true},
+		{"user@10.0.0.1: Permission denied (keyboard-interactive).", true},
+		// A ProxyJump hop that needs a login ends with the outer connection closing.
+		{"jump@bastion: Permission denied (publickey).\nConnection closed by UNKNOWN port 65535", true},
+		{"ssh: connect to host 127.0.0.1 port 2299: Connection refused", false},
+		{"ssh: Could not resolve hostname nope.invalid: Name or service not known", false},
+		{"ssh: connect to host 10.0.0.1 port 22: Connection timed out", false},
+	}
+	for _, c := range cases {
+		if got := needsLogin(c.log); got != c.want {
+			t.Errorf("needsLogin(%q) = %v, want %v", c.log, got, c.want)
+		}
+	}
+}
+
+func TestMasterPID(t *testing.T) {
+	if pid, ok := masterPID("Master running (pid=617517)\n"); !ok || pid != 617517 {
+		t.Errorf("got %d, %v", pid, ok)
+	}
+	if _, ok := masterPID("Control socket connect(/s): No such file or directory"); ok {
+		t.Error("read a pid from a failed check")
+	}
+}
+
+func TestControlFailureKeepsSSHsReason(t *testing.T) {
+	output := "mux_client_forward: forwarding request failed: remote port forwarding failed for listen port 8813\nmuxclient: master forward request failed\n"
+	if got := controlFailure(output); got != "remote port forwarding failed for listen port 8813" {
+		t.Errorf("got %q", got)
+	}
+}

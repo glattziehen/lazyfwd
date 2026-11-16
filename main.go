@@ -39,7 +39,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	supervisor := tunnel.NewSupervisor()
+	supervisor, err := tunnel.NewSupervisor(tunnel.DefaultBaseDir())
+	if err != nil {
+		return err
+	}
 	defer supervisor.StopAll()
 	_, err = tea.NewProgram(tui.New(store, supervisor, ws, sshConfigHosts), tea.WithAltScreen()).Run()
 	return err

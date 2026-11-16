@@ -61,21 +61,12 @@ func (f Forward) LaptopURL() string {
 	return "http://" + f.LaptopAddr().String()
 }
 
-// SSHArgs are the ssh arguments that open this forward and nothing else.
+// SSHArgs are the ssh arguments that request this forward, such as
+// "-L 4966:localhost:4966".
 func (f Forward) SSHArgs() []string {
 	flag := "-L"
 	if f.Direction == Remote {
 		flag = "-R"
 	}
-	spec := fmt.Sprintf("%d:%s", f.BindPort, f.Target)
-	return []string{
-		"-N",
-		"-o", "ExitOnForwardFailure=yes",
-		"-o", "BatchMode=yes",
-		"-o", "ConnectTimeout=10",
-		"-o", "ServerAliveInterval=15",
-		"-o", "ServerAliveCountMax=3",
-		flag, spec,
-		f.Host,
-	}
+	return []string{flag, fmt.Sprintf("%d:%s", f.BindPort, f.Target)}
 }

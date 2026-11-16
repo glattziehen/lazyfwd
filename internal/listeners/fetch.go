@@ -1,11 +1,8 @@
 package listeners
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"os/exec"
-	"strings"
 	"time"
 )
 
@@ -25,19 +22,16 @@ const (
 		"echo " + sectionNetstat + "; exec netstat -anp tcp'"
 )
 
-// Fetch lists the ports listening on host with one ssh command.
-func Fetch(host string) ([]Listener, error) {
+// Runner runs command on host over ssh and returns its stdout.
+type Runner func(ctx context.Context, host, command string) (string, error)
+
+// Fetch lists the ports listening on host with one remote command.
+func Fetch(run Runner, host string) ([]Listener, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, listCommand)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
-		reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
-		if reason == "" {
-			reason = err.Error()
-		}
-		return nil, fmt.Errorf("listing ports on %s failed: %s", host, strings.TrimSpace(reason))
+	stdout, err := run(ctx, host, listCommand)
+	if err != nil {
+		return nil, fmt.Errorf("listing ports on %s failed: %w", host, err)
 	}
-	return Parse(stdout.String()), nil
+	return Parse(stdout), nil
 }
