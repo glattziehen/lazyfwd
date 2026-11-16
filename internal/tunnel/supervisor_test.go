@@ -108,7 +108,10 @@ func TestQueuedForwardsShareOneFailedConnect(t *testing.T) {
 	}
 	for range 3 {
 		select {
-		case <-supervisor.Exits():
+		case event := <-supervisor.Events():
+			if status := supervisor.Status(event.ID); status.State != Failed {
+				t.Errorf("forward %d is %s after its failure event", event.ID, status.State)
+			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("a forward on the failed host never failed")
 		}
@@ -145,5 +148,30 @@ func TestConnectFailureShowsWhatSSHPrintedBeforeItsLog(t *testing.T) {
 
 	if err == nil || err.Error() != "hostname contains invalid characters" {
 		t.Fatalf("got %v", err)
+	}
+}
+
+// A caller that waits for a forward to start needs to learn when the master
+// holds it, and Status must already say so when the Event arrives.
+func TestStartReportsRunningOnceTheMasterHoldsTheForward(t *testing.T) {
+	fakeSSH(t, `case "$*" in
+*"-O check"*) echo "Master running (pid=$PPID)";;
+*"-f -N "*) for arg; do case $arg in ControlPath=*) : > "${arg#ControlPath=}";; esac; done;;
+esac`)
+	supervisor := newSupervisor(t)
+	forward := localForward(1, "box")
+
+	supervisor.Start(forward)
+
+	select {
+	case event := <-supervisor.Events():
+		if event.ID != forward.ID || event.Status.State != Running {
+			t.Fatalf("event %+v, want forward 1 running", event)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no event for the started forward")
+	}
+	if status := supervisor.Status(forward.ID); status.State != Running {
+		t.Fatalf("status %+v after the event, want running", status)
 	}
 }

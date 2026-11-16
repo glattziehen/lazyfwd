@@ -76,7 +76,7 @@ func TestUpdateForwardKeepsOwnPort(t *testing.T) {
 func TestHostsListsPinnedFirstThenByName(t *testing.T) {
 	var ws Workspace
 	_ = ws.AddHost("zeta")
-	ws.TogglePin("beta")
+	ws.Pin("beta")
 	var names []string
 	for _, host := range ws.Hosts([]string{"alpha", "beta"}) {
 		names = append(names, host.Name)

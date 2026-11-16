@@ -38,7 +38,7 @@ func (m Model) updateQuitDialog(msg tea.KeyMsg) (Model, tea.Cmd) {
 // quit stops every forward, which closes every ssh connection, and ends the
 // program.
 func (m Model) quit() (Model, tea.Cmd) {
-	m.supervisor.StopAll()
+	m.owner.Close()
 	return m, tea.Quit
 }
 
@@ -62,8 +62,8 @@ func (m Model) quitView(height int) string {
 
 func (m Model) runningCount() int {
 	count := 0
-	for _, forward := range m.workspace.Forwards {
-		if m.supervisor.IsRunning(forward.ID) {
+	for _, forward := range m.state.Forwards {
+		if forward.Status.IsActive() {
 			count++
 		}
 	}

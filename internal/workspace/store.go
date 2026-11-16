@@ -76,28 +76,72 @@ func (s FileStore) Save(workspace Workspace) error {
 	return os.Rename(tmp, path)
 }
 
-// Lock claims the workspace for this process until release is called or the
+// ErrLocked reports that another process holds the workspace's lock.
+var ErrLocked = errors.New("another lazyfwd holds the workspace")
+
+// Lock is this process's claim on the workspace. The lock file also holds
+// the holder's address, where other lazyfwd processes reach it while it runs.
+type Lock struct {
+	file *os.File
+}
+
+// Lock claims the workspace for this process until Release is called or the
 // process ends, so two lazyfwd instances never overwrite each other's file.
 // The lock is on a file next to the workspace; the system drops it when the
-// process exits, crashes included, so no stale lock survives.
-func (s FileStore) Lock() (release func(), err error) {
+// process exits, crashes included, so no stale lock survives. It
+// fails with ErrLocked while another process holds the lock.
+func (s FileStore) Lock() (*Lock, error) {
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {
 		return nil, err
 	}
-	file, err := os.OpenFile(s.Path+".lock", os.O_CREATE|os.O_RDWR, 0o644)
+	file, err := os.OpenFile(s.lockPath(), os.O_CREATE|os.O_RDWR, 0o644)
 	if err != nil {
 		return nil, err
 	}
 	err = lockfile.TryLock(file)
 	if errors.Is(err, lockfile.ErrLocked) {
 		_ = file.Close()
-		return nil, fmt.Errorf("another lazyfwd is already running with %s; switch to it or quit it first", s.Path)
+		return nil, fmt.Errorf("%w %s", ErrLocked, s.Path)
 	}
 	if err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf("lock %s: %w", s.Path, err)
 	}
-	return func() { _ = file.Close() }, nil
+	// A crashed holder leaves its address behind.
+	if err := file.Truncate(0); err != nil {
+		_ = file.Close()
+		return nil, err
+	}
+	return &Lock{file: file}, nil
+}
+
+// SetHolderAddress records where this process answers while it holds the lock.
+func (l *Lock) SetHolderAddress(address string) error {
+	if err := l.file.Truncate(0); err != nil {
+		return err
+	}
+	_, err := l.file.WriteAt([]byte(address), 0)
+	return err
+}
+
+// Release gives up the lock.
+func (l *Lock) Release() {
+	_ = l.file.Close()
+}
+
+// HolderAddress is the address that the lock's holder recorded, or "" when it
+// recorded none. It is meaningful only while Lock fails with ErrLocked: a
+// crashed holder's address stays in the file until the next Lock.
+func (s FileStore) HolderAddress() (string, error) {
+	content, err := os.ReadFile(s.lockPath())
+	if errors.Is(err, fs.ErrNotExist) {
+		return "", nil
+	}
+	return string(content), err
+}
+
+func (s FileStore) lockPath() string {
+	return s.Path + ".lock"
 }
 
 // forwardJSON is a Forward as workspace.json stores it. Files from before

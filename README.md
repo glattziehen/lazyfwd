@@ -43,3 +43,15 @@ Use `tab` to switch panels. In Listening, select a port and press `space` to for
 Forwards stop when you quit lazyfwd and return stopped the next time you run it. If SSH needs a password, host key confirmation, or another login step, lazyfwd hands the terminal to SSH and returns after it connects.
 
 Hosts, pins, and forwards are saved in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS).
+
+## Command line
+
+Scripts and agents can do everything the UI does with commands. They go through the running `lazyfwd`, so the UI shows their changes at once. Without the UI, run `lazyfwd serve` to hold the connections:
+
+```sh
+lazyfwd serve &
+lazyfwd forward add box 4966-4968 --start   # remote ports 4966-4968 to the same local ports
+lazyfwd forward list --json
+```
+
+Run `lazyfwd --help` for the commands, their JSON output, and exit codes.

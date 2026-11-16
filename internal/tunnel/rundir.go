@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/glattziehen/lazyfwd/internal/lockfile"
 )
@@ -43,6 +43,14 @@ func fitsSocketPath(base string) bool {
 func socketName(host string) string {
 	sum := sha256.Sum256([]byte(host))
 	return hex.EncodeToString(sum[:])[:socketNameLength]
+}
+
+var socketNamePattern = regexp.MustCompile(`^[0-9a-f]{` + strconv.Itoa(socketNameLength) + `}$`)
+
+// isSocketName reports whether name is a host's socket name, rather than the
+// lock, a log, or another file in the run directory.
+func isSocketName(name string) bool {
+	return socketNamePattern.MatchString(name)
 }
 
 // runDir is this process's locked directory of master sockets.
@@ -96,11 +104,11 @@ func closeLeftovers(base string) {
 		if err != nil || lock == nil {
 			continue
 		}
-		sockets, _ := os.ReadDir(dir)
-		for _, socket := range sockets {
-			if name := socket.Name(); name != lockName && !strings.HasSuffix(name, logExt) {
+		files, _ := os.ReadDir(dir)
+		for _, file := range files {
+			if isSocketName(file.Name()) {
 				// -O ignores the destination, but ssh requires one.
-				_, _ = runControl(context.Background(), controlArgs(filepath.Join(dir, name), "exit", "lazyfwd"))
+				_, _ = runControl(context.Background(), controlArgs(filepath.Join(dir, file.Name()), "exit", "lazyfwd"))
 			}
 		}
 		_ = lock.Close()

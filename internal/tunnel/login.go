@@ -24,6 +24,18 @@ type Login struct {
 	cmd        *exec.Cmd
 }
 
+// NewLogin opens host's master on controlPath, a Supervisor's ControlPath:
+// the Supervisor may run in another lazyfwd process of the same user.
+func NewLogin(host, controlPath string) *Login {
+	logPath := controlPath + logExt
+	return &Login{
+		Host:       host,
+		socketPath: controlPath,
+		logPath:    logPath,
+		cmd:        exec.Command("ssh", loginArgs(controlPath, logPath, host)...),
+	}
+}
+
 // Run opens the master unless one already serves the socket. ssh moves to
 // the background once authenticated, so Run returns then.
 func (l *Login) Run() error {
