@@ -174,6 +174,7 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 		return
 	}
 	c.established[forward.ID] = established{forward: forward, generation: generation}
+	c.supervisor.establish(forward.ID, generation)
 }
 
 // checkBind readies the forward's listening end, or says why it cannot

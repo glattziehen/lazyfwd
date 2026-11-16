@@ -29,8 +29,8 @@ func TestBurstWithActingKeysDoesNothing(t *testing.T) {
 
 		m = send(m, burst)
 
-		if len(m.workspace.Forwards) != 3 || selectedLiveID(m) != 1 {
-			t.Errorf("%q (paste %v): %d forwards left, selected %d", string(burst.Runes), burst.Paste, len(m.workspace.Forwards), selectedLiveID(m))
+		if len(m.state.Forwards) != 3 || selectedLiveID(m) != 1 {
+			t.Errorf("%q (paste %v): %d forwards left, selected %d", string(burst.Runes), burst.Paste, len(m.state.Forwards), selectedLiveID(m))
 		}
 	}
 }

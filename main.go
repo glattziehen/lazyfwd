@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/glattziehen/lazyfwd/internal/owner"
 	"github.com/glattziehen/lazyfwd/internal/sshconfig"
 	"github.com/glattziehen/lazyfwd/internal/tui"
 	"github.com/glattziehen/lazyfwd/internal/tunnel"
@@ -35,11 +36,11 @@ func run() error {
 		return err
 	}
 	store := workspace.FileStore{Path: storePath}
-	release, err := store.Lock()
+	lock, err := store.Lock()
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer lock.Release()
 	ws, err := store.Load()
 	if err != nil {
 		return err
@@ -56,8 +57,9 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	defer supervisor.StopAll()
-	_, err = tea.NewProgram(tui.New(store, supervisor, ws, sshConfigHosts), tea.WithAltScreen()).Run()
+	o := owner.New(store, supervisor, ws, sshConfigHosts)
+	defer o.Close()
+	_, err = tea.NewProgram(tui.New(o), tea.WithAltScreen()).Run()
 	return err
 }
 
