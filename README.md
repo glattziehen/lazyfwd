@@ -4,6 +4,12 @@ Manage SSH port forwards from a keyboard-first terminal UI, in the spirit of laz
 
 lazyfwd uses your system `ssh`, so your SSH config, agent, and ProxyJump work as usual. It runs on Linux and macOS, including WSL, but not Windows itself.
 
+- Pick hosts from your SSH config and pin the ones you use most.
+- See your processes' listening ports and process names when available, then forward a port with one key.
+- See, stop, and open running forwards across hosts in the Live panel. Web ports have clickable local links in supported terminals.
+- Forward TCP ports and Unix sockets in either direction (`-L` or `-R`).
+- Keep the same local port as the remote port by default, or use the nearest free one. For example, `4966-4968` stays `4966-4968` when free.
+
 <!-- Screenshot goes here. -->
 
 ## Install
@@ -35,3 +41,5 @@ Run `lazyfwd`. Select a host from your SSH config with `j` and `k`, then press `
 Use `tab` to switch panels. In Listening, select a port and press `space` to forward it to your machine. In Forwards, press `a` to add a local forward by hand, or `space` to start or stop one. Press `A` to add a remote forward, or `o` to open a forward's local end in your browser. Press `?` for all keys.
 
 Forwards stop when you quit lazyfwd and return stopped the next time you run it. If SSH needs a password, host key confirmation, or another login step, lazyfwd hands the terminal to SSH and returns after it connects.
+
+Hosts, pins, and forwards are saved in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS).
