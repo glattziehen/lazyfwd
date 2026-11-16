@@ -9,10 +9,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/moritzwilksch/lazyfwd/internal/browser"
-	"github.com/moritzwilksch/lazyfwd/internal/listeners"
-	"github.com/moritzwilksch/lazyfwd/internal/tunnel"
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/browser"
+	"github.com/glattziehen/lazyfwd/internal/listeners"
+	"github.com/glattziehen/lazyfwd/internal/tunnel"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // Store persists the workspace after every change.

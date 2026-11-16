@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moritzwilksch/lazyfwd/internal/tunnel"
+	"github.com/glattziehen/lazyfwd/internal/tunnel"
 )
 
 // loginCommand frames an interactive ssh login on the released terminal: a

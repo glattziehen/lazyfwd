@@ -16,7 +16,7 @@ The remote host can be Linux (with `ss`, `netstat`, or only `/proc`), macOS, or 
 
 lazyfwd runs on Linux and macOS and needs `ssh` on your `PATH`.
 
-**Release binary.** Download the archive for your system from the [releases page](https://github.com/moritzwilksch/lazyfwd/releases), check it against `checksums.txt`, and put `lazyfwd` on your `PATH`:
+**Release binary.** Download the archive for your system from the [releases page](https://github.com/glattziehen/lazyfwd/releases), check it against `checksums.txt`, and put `lazyfwd` on your `PATH`:
 
 ```sh
 tar -xzf lazyfwd_*_darwin_arm64.tar.gz lazyfwd
@@ -28,7 +28,7 @@ On macOS, a browser download is quarantined; run `xattr -d com.apple.quarantine 
 **go install.** With Go 1.24 or later:
 
 ```sh
-go install github.com/moritzwilksch/lazyfwd@latest
+go install github.com/glattziehen/lazyfwd@latest
 ```
 
 **From source.** In a checkout, run `go build .` with Go 1.24 or later, or `pixi run build` with [pixi](https://pixi.sh), which brings its own Go. Both write `./lazyfwd`. To contribute, run `pixi run lefthook-install` once: the pre-commit hook (`.lefthook.yml`) then formats and lints the staged files, and `pixi run lint` runs it over every file, as CI does.

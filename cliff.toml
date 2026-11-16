@@ -8,7 +8,7 @@ header = """
 All notable changes to this project are documented in this file."""
 # The `<!-- n -->` prefixes of the group names order the sections; `striptags` hides them.
 body = """
-{%- macro remote() -%}https://github.com/moritzwilksch/lazyfwd{%- endmacro -%}
+{%- macro remote() -%}https://github.com/glattziehen/lazyfwd{%- endmacro -%}
 {%- if version and previous.version %}
 ## [{{ version | trim_start_matches(pat="v") }}]({{ self::remote() }}/compare/{{ previous.version }}...{{ version }}) - {{ timestamp | date(format="%Y-%m-%d") }}
 {%- elif version %}
@@ -24,7 +24,7 @@ body = """
 {% endfor %}"""
 trim = false
 postprocessors = [
-  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/moritzwilksch/lazyfwd/pull/${1}))" },
+  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/glattziehen/lazyfwd/pull/${1}))" },
 ]
 
 [git]

@@ -1,4 +1,4 @@
-module github.com/moritzwilksch/lazyfwd
+module github.com/glattziehen/lazyfwd
 
 go 1.24.2
 

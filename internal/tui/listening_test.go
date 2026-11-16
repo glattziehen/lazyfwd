@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/moritzwilksch/lazyfwd/internal/listeners"
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/listeners"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // Docker's published ports belong to root's docker-proxy, so the default

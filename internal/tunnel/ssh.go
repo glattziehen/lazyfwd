@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // A host's connection is one OpenSSH ControlMaster on a lazyfwd-owned
