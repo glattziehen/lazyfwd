@@ -37,6 +37,7 @@ func (s FileStore) Load() (Workspace, error) {
 	if err := json.Unmarshal(content, &workspace); err != nil {
 		return workspace, fmt.Errorf("parse %s: %w", s.Path, err)
 	}
+	workspace.repairIDs()
 	return workspace, nil
 }
 

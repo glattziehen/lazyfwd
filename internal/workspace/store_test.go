@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -77,5 +78,28 @@ func TestFileStoreRoundTripsSocketEnds(t *testing.T) {
 
 	if err != nil || !reflect.DeepEqual(loaded, ws) {
 		t.Fatalf("loaded %+v, %v; want %+v", loaded, err, ws)
+	}
+}
+
+// A hand-edited or merged file may lack next_id or repeat an id; one delete
+// must still remove exactly one forward, and no forward may be dropped.
+func TestLoadGivesEveryForwardItsOwnID(t *testing.T) {
+	ws, err := FileStore{Path: filepath.Join("testdata", "workspace_without_next_id.json")}.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	added, err := ws.AddForwards("box", Local, []End{{Host: "localhost", Port: 8080}}, End{}, allFree)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ws.DeleteForward(added[0].ID)
+
+	var ports []int
+	for _, forward := range ws.Forwards {
+		ports = append(ports, forward.Bind.Port)
+	}
+	if !slices.Equal(ports, []int{4966, 4967, 4968}) {
+		t.Fatalf("forwards left after deleting the added one: %v", ports)
 	}
 }

@@ -1,0 +1,7 @@
+{
+  "forwards": [
+    {"id": 1, "host": "box", "direction": "local", "bind_port": 4966, "target": {"host": "localhost", "port": 4966}},
+    {"id": 2, "host": "box", "direction": "local", "bind_port": 4967, "target": {"host": "localhost", "port": 4967}},
+    {"id": 2, "host": "box", "direction": "local", "bind_port": 4968, "target": {"host": "localhost", "port": 4968}}
+  ]
+}

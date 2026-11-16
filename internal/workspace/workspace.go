@@ -147,6 +147,25 @@ func (w *Workspace) UpdateForward(id ForwardID, target End, bind End, isFree fun
 	return forward, nil
 }
 
+// repairIDs gives every forward its own positive ID and moves NextID above
+// all of them. A hand-edited or merged file can lack next_id or repeat an ID,
+// which would let a new forward share an ID and one delete remove both. IDs
+// are internal and nothing else refers to them, so renumbering a repeat keeps
+// every forward and loses nothing.
+func (w *Workspace) repairIDs() {
+	for _, forward := range w.Forwards {
+		w.NextID = max(w.NextID, forward.ID)
+	}
+	isTaken := map[ForwardID]bool{}
+	for i, forward := range w.Forwards {
+		if forward.ID <= 0 || isTaken[forward.ID] {
+			w.NextID++
+			w.Forwards[i].ID = w.NextID
+		}
+		isTaken[w.Forwards[i].ID] = true
+	}
+}
+
 // DeleteForward removes a forward; deleting an unknown forward is a no-op.
 func (w *Workspace) DeleteForward(id ForwardID) {
 	w.Forwards = slices.DeleteFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
