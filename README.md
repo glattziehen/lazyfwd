@@ -50,7 +50,7 @@ Every forward has a local end, on this machine, and a remote end, on the host. A
 
 Add a local forward with `a`. The remote end can be one port, a range, or a list: `4966-4968`, `8080`, `db:5432`. Leave the local end empty and lazyfwd picks a port: the target port if it is free, otherwise the nearest free port. For example, `4966-4968` with 4966 taken on the local machine gives 4965, 4967, 4968. Set the local end to choose the port yourself.
 
-Add a remote forward with `A`. Its remote end defaults to the target port.
+Add a remote forward with `A`. Its remote end defaults to the target port. Two forwards cannot listen on the same end: the same local port or socket on this machine, or the same remote port or socket on one host.
 
 `e` edits a forward. The form shows a port on localhost as the port alone, so changing it means replacing one word.
 
