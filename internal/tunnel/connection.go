@@ -1,6 +1,9 @@
+//go:build unix
+
 package tunnel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,39 +11,15 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
-const (
-	// masterCheckInterval is how often a connection looks for its master's death.
-	masterCheckInterval = 2 * time.Second
-	// probeTimeout bounds the check whether something listens on the host.
-	probeTimeout = 5 * time.Second
-	// masterOpenTimeout bounds opening a master without prompts. ssh's
-	// ConnectTimeout stops counting once the server sends its banner, so a
-	// server that stalls after that would hang the connect for good.
-	masterOpenTimeout = 20 * time.Second
-	// controlTimeout bounds a control command to the master.
-	controlTimeout = 10 * time.Second
-)
-
-// ConnectError reports that a host's connection could not open.
-type ConnectError struct {
-	Host string
-	// Reason is the last line of ssh's log, or ssh's exit error.
-	Reason string
-	// Log is everything ssh logged.
-	Log string
-	// NeedsLogin is set when an interactive login would get further.
-	NeedsLogin bool
-}
-
-func (e *ConnectError) Error() string {
-	return e.Reason
-}
+// masterCheckInterval is how often a connection looks for its master's death.
+const masterCheckInterval = 2 * time.Second
 
 // established is a forward that the master holds.
 type established struct {
@@ -140,6 +119,48 @@ func (c *connection) run() {
 func (c *connection) close() {
 	close(c.quit)
 	<-c.closed
+}
+
+// startForward queues the forward's start behind the host's earlier
+// operations.
+func (c *connection) startForward(ctx context.Context, forward workspace.Forward, generation uint64) {
+	queuedAt := time.Now()
+	c.enqueue(func() { c.start(ctx, forward, generation, queuedAt) })
+}
+
+// stopForward queues the forward's stop behind the host's earlier operations.
+func (c *connection) stopForward(id workspace.ForwardID) {
+	c.enqueue(func() { c.stop(id) })
+}
+
+// runCommand runs command on the host over the master, opening the master first if
+// needed; Supervisor.Run documents the result.
+func (c *connection) runCommand(ctx context.Context, command string) (string, error) {
+	connected := make(chan error, 1)
+	queuedAt := time.Now()
+	c.enqueue(func() { connected <- c.ensureMaster(ctx, queuedAt) })
+	select {
+	case err := <-connected:
+		if err != nil {
+			return "", err
+		}
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	cmd := exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, c.host, command)...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	// ssh exits 255 for its own errors; other statuses are the command's.
+	var exitErr *exec.ExitError
+	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() != 255) {
+		return stdout.String(), err
+	}
+	reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
+	if reason == "" {
+		reason = err.Error()
+	}
+	return stdout.String(), errors.New(strings.TrimSpace(reason))
 }
 
 // start puts the forward on the master, opening the master first if needed,
@@ -327,4 +348,16 @@ func (c *connection) closeMaster() {
 	}
 	c.masterPID = 0
 	clear(c.established)
+}
+
+// isCurrent reports whether the forward still runs as generation.
+func (s *Supervisor) isCurrent(id workspace.ForwardID, generation uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.running[id].generation == generation
+}
+
+func lastLine(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	return strings.TrimSpace(lines[len(lines)-1])
 }

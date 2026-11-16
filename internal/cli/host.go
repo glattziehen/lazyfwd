@@ -122,6 +122,10 @@ command in a terminal and answers ssh's prompts here. Once ssh connects, the
 owner's forwards and port lists on HOST use this connection, and HOST's failed
 forwards start again. The connection ends when the owner quits.
 
+On Windows each forward connects on its own, so a login there only lets you
+accept HOST's key; it asks for no password or 2FA, which the forwards could not
+reuse.
+
 It needs a terminal and a running owner (exit code 3 without one).`,
 		Example: `  # After "lazyfwd forward start 3" exited with code 4:
   lazyfwd host login box

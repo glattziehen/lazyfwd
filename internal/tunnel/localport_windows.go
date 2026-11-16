@@ -36,18 +36,49 @@ func IsLocalPortFree(port int) bool {
 		return false
 	}
 	for _, listener := range listeners {
-		address := listener.Addr().Unmap()
+		address := listener.address.Addr().Unmap()
 		isLocalhost := address == netip.IPv4Unspecified() || address == netip.AddrFrom4([4]byte{127, 0, 0, 1}) ||
 			address == netip.IPv6Unspecified() || address == netip.IPv6Loopback()
-		if int(listener.Port()) == port && isLocalhost {
+		if int(listener.address.Port()) == port && isLocalhost {
 			return false
 		}
 	}
 	return true
 }
 
-// tcpListeners lists the local addresses of every listening TCP socket.
-func tcpListeners() ([]netip.AddrPort, error) {
+// checkLocalPort reports an error naming the port when something listens on
+// it on the local loopback or the wildcard address. It reads the listener
+// table rather than connecting: Windows takes about 2 s to refuse a connect
+// to a closed loopback port.
+func checkLocalPort(port int) error {
+	if !IsLocalPortFree(port) {
+		return portInUseError(port)
+	}
+	return nil
+}
+
+// isListeningBy reports whether process pid listens on the TCP port.
+func isListeningBy(pid, port int) bool {
+	listeners, err := tcpListeners()
+	if err != nil {
+		return false
+	}
+	for _, listener := range listeners {
+		if listener.pid == pid && int(listener.address.Port()) == port {
+			return true
+		}
+	}
+	return false
+}
+
+// tcpListener is a listening TCP socket and the process that owns it.
+type tcpListener struct {
+	address netip.AddrPort
+	pid     int
+}
+
+// tcpListeners lists every listening TCP socket.
+func tcpListeners() ([]tcpListener, error) {
 	table4, err := tcpTable(windows.AF_INET)
 	if err != nil {
 		return nil, err
@@ -56,17 +87,24 @@ func tcpListeners() ([]netip.AddrPort, error) {
 	if err != nil {
 		return nil, err
 	}
-	var listeners []netip.AddrPort
+	var listeners []tcpListener
 	for row := range rows(table4, tcpRowSize) {
-		// dwState, dwLocalAddr, dwLocalPort, ...; address and port are in
-		// network byte order.
+		// dwState, dwLocalAddr, dwLocalPort, dwRemoteAddr, dwRemotePort,
+		// dwOwningPid; address and port are in network byte order.
 		address := netip.AddrFrom4([4]byte(row[4:8]))
-		listeners = append(listeners, netip.AddrPortFrom(address, binary.BigEndian.Uint16(row[8:10])))
+		listeners = append(listeners, tcpListener{
+			address: netip.AddrPortFrom(address, binary.BigEndian.Uint16(row[8:10])),
+			pid:     int(binary.LittleEndian.Uint32(row[20:24])),
+		})
 	}
 	for row := range rows(table6, tcp6RowSize) {
-		// ucLocalAddr[16], dwLocalScopeId, dwLocalPort, ...
+		// ucLocalAddr[16], dwLocalScopeId, dwLocalPort, ucRemoteAddr[16],
+		// dwRemoteScopeId, dwRemotePort, dwState, dwOwningPid.
 		address := netip.AddrFrom16([16]byte(row[0:16]))
-		listeners = append(listeners, netip.AddrPortFrom(address, binary.BigEndian.Uint16(row[20:22])))
+		listeners = append(listeners, tcpListener{
+			address: netip.AddrPortFrom(address, binary.BigEndian.Uint16(row[20:22])),
+			pid:     int(binary.LittleEndian.Uint32(row[52:56])),
+		})
 	}
 	return listeners, nil
 }

@@ -145,8 +145,3 @@ func controlFailure(output string) string {
 	}
 	return strings.TrimSpace(first)
 }
-
-func lastLine(text string) string {
-	lines := strings.Split(strings.TrimSpace(text), "\n")
-	return strings.TrimSpace(lines[len(lines)-1])
-}
