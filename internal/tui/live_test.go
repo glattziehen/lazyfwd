@@ -6,8 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/moritzwilksch/lazyfwd/internal/tunnel"
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/tunnel"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 type discardStore struct{}

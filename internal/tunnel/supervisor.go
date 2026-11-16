@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // Exited reports that a forward ended without Stop being called: its

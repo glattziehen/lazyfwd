@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 func TestEverySSHCallEndsOptionsBeforeTheHost(t *testing.T) {
