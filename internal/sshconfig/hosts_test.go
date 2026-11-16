@@ -39,7 +39,7 @@ func TestHostsMergesUserAndSystemConfigs(t *testing.T) {
 	files := map[string]string{
 		filepath.Join(userDir, "config"):                      "Host box\n",
 		filepath.Join(systemDir, "ssh_config"):                "Include ssh_config.d/*.conf\nHost *\n",
-		filepath.Join(systemDir, "ssh_config.d", "jump.conf"): "Match host x\nHost jump box\n",
+		filepath.Join(systemDir, "ssh_config.d", "jump.conf"): "Match host x\nHost jump box\nHost .host machine/.host\n",
 	}
 	for path, content := range files {
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

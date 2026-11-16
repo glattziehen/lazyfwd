@@ -17,7 +17,8 @@ const SystemConfigPath = "/etc/ssh/ssh_config"
 
 // Hosts lists the aliases named in Host lines of the configs at paths and the
 // files they include. Patterns (*, ?, negations) are skipped since they name
-// no single host. Match blocks name no aliases, so they add none. Like ssh, it
+// no single host, and so are aliases no host name can have, such as systemd's
+// ".host" and "machine/.host" proxy aliases in /etc/ssh/ssh_config.d. Match blocks name no aliases, so they add none. Like ssh, it
 // skips a config it cannot open, such as a missing one.
 func Hosts(paths ...string) ([]string, error) {
 	var hosts []string
@@ -42,7 +43,7 @@ func collect(path, sshDir string, depth int, hosts *[]string) error {
 		switch keyword {
 		case "host":
 			for _, alias := range args {
-				if !strings.ContainsAny(alias, "*?!") {
+				if !strings.ContainsAny(alias, "*?!/") && !strings.HasPrefix(alias, ".") {
 					*hosts = append(*hosts, alias)
 				}
 			}
