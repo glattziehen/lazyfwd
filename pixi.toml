@@ -1,0 +1,16 @@
+[workspace]
+name = "lazyfwd"
+channels = ["conda-forge"]
+platforms = ["linux-64", "osx-arm64", "osx-64"]
+
+[tasks]
+build = "go build -o lazyfwd ."
+check = "go vet ./... && go test ./..."
+run = "go run ."
+
+[dependencies]
+go = ">=1.27.4,<2"
+
+[activation.env]
+# conda-forge's go expects a conda C compiler for cgo; lazyfwd needs no cgo.
+CGO_ENABLED = "0"
