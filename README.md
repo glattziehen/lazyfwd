@@ -33,7 +33,23 @@ Add a local forward with `a`. The target can be one port, a range, or a list: `4
 
 Add a remote forward (`ssh -R`, a port on the host that reaches your laptop) with `A`. The remote port defaults to the target port.
 
-Each forward is its own `ssh -N` process, started when you add it. Forwards stop when lazyfwd quits and come back stopped next time. lazyfwd uses `BatchMode=yes`, so hosts must authenticate without a prompt (key or agent).
+Forwards start when you add them, stop when lazyfwd quits, and come back stopped next time.
+
+## Connections and logins
+
+lazyfwd opens one ssh connection per host, an OpenSSH ControlMaster, and puts all of that host's forwards and the Listening fetch on it. It first connects without prompts. A host that authenticates with a key or agent connects with no extra step.
+
+When ssh needs you, lazyfwd hands the terminal to a plain `ssh` for that host and returns once it connects. This covers a first connection to an unknown host key, a password, a key passphrase without an agent, and 2FA. One login serves every forward and fetch on that host until lazyfwd quits or the connection drops. A login starts only after you start a forward or enter a host, never on its own. If the login fails, ssh's messages stay on screen until you press enter; `ctrl+c` at a prompt cancels it. Start the forward again to retry.
+
+If a connection drops (network loss, host restart, or about 45 seconds without an answer), its forwards turn failed with the reason in the footer. Starting one opens a new connection, with a login if needed.
+
+lazyfwd passes its own `ControlMaster`, `ControlPath`, and `ControlPersist`, so these settings in `~/.ssh/config` do not apply to its connections, and lazyfwd never uses or closes your own masters. It keeps its sockets in `$XDG_RUNTIME_DIR/lazyfwd-<uid>`, else in the temp directory, else in `/tmp/lazyfwd-<uid>`. If lazyfwd dies without quitting (`kill -9`, a closed terminal), its connections keep running and hold their ports until the next start of lazyfwd closes them.
+
+Limits:
+
+- A host key that changed fails like ssh does: lazyfwd shows ssh's warning and never edits `known_hosts`. Fix the entry yourself.
+- A host that refuses your key and offers no password fails the login at once; lazyfwd shows ssh's message.
+- lazyfwd needs OpenSSH with ControlMaster support, so it runs on Linux and macOS, not Windows.
 
 lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS).
 
