@@ -228,7 +228,7 @@ func (m *Model) updateHostKey(key string) tea.Cmd {
 			return nil
 		}
 		if !host.IsManual {
-			m.message = host.Name + " comes from ~/.ssh/config; edit that file to remove it"
+			m.message = host.Name + " comes from your ssh config (~/.ssh/config or /etc/ssh/ssh_config); remove it there"
 			return nil
 		}
 		m.workspace.RemoveHost(host.Name)
@@ -279,7 +279,12 @@ func (m *Model) actOnForward(key string, forward workspace.Forward) {
 		m.save()
 		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
-		if err := browser.Open(forward.LaptopURL()); err != nil {
+		url, isWeb := forward.LaptopURL()
+		if !isWeb {
+			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LaptopAddr())
+			return
+		}
+		if err := browser.Open(url); err != nil {
 			m.message = "open browser: " + err.Error()
 		}
 	}

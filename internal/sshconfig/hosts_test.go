@@ -31,3 +31,26 @@ func TestHostsOfMissingConfigIsEmpty(t *testing.T) {
 		t.Fatalf("got %v, %v", got, err)
 	}
 }
+
+// The system config resolves relative Includes against its own directory,
+// /etc/ssh, not ~/.ssh.
+func TestHostsMergesUserAndSystemConfigs(t *testing.T) {
+	userDir, systemDir := t.TempDir(), t.TempDir()
+	files := map[string]string{
+		filepath.Join(userDir, "config"):                      "Host box\n",
+		filepath.Join(systemDir, "ssh_config"):                "Include ssh_config.d/*.conf\nHost *\n",
+		filepath.Join(systemDir, "ssh_config.d", "jump.conf"): "Match host x\nHost jump box\nHost .host machine/.host\n",
+	}
+	for path, content := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := Hosts(filepath.Join(userDir, "config"), filepath.Join(systemDir, "ssh_config"))
+	if err != nil || !slices.Equal(got, []string{"box", "jump"}) {
+		t.Fatalf("got %v, %v", got, err)
+	}
+}

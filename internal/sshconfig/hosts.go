@@ -3,8 +3,6 @@ package sshconfig
 
 import (
 	"bufio"
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -14,13 +12,20 @@ import (
 // maxIncludeDepth matches OpenSSH's limit on nested Include directives.
 const maxIncludeDepth = 16
 
-// Hosts lists the aliases named in Host lines of the config at path and the
-// files it includes. Patterns (*, ?, negations) are skipped since they name no
-// single host. A missing config yields no hosts.
-func Hosts(path string) ([]string, error) {
+// SystemConfigPath is OpenSSH's system-wide client config on Linux and macOS.
+const SystemConfigPath = "/etc/ssh/ssh_config"
+
+// Hosts lists the aliases named in Host lines of the configs at paths and the
+// files they include. Patterns (*, ?, negations) are skipped since they name
+// no single host, and so are aliases no host name can have, such as systemd's
+// ".host" and "machine/.host" proxy aliases in /etc/ssh/ssh_config.d. Match blocks name no aliases, so they add none. Like ssh, it
+// skips a config it cannot open, such as a missing one.
+func Hosts(paths ...string) ([]string, error) {
 	var hosts []string
-	if err := collect(path, filepath.Dir(path), 0, &hosts); err != nil {
-		return nil, err
+	for _, path := range paths {
+		if err := collect(path, filepath.Dir(path), 0, &hosts); err != nil {
+			return nil, err
+		}
 	}
 	slices.Sort(hosts)
 	return slices.Compact(hosts), nil
@@ -28,11 +33,8 @@ func Hosts(path string) ([]string, error) {
 
 func collect(path, sshDir string, depth int, hosts *[]string) error {
 	file, err := os.Open(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
 	if err != nil {
-		return err
+		return nil
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
@@ -41,7 +43,7 @@ func collect(path, sshDir string, depth int, hosts *[]string) error {
 		switch keyword {
 		case "host":
 			for _, alias := range args {
-				if !strings.ContainsAny(alias, "*?!") {
+				if !strings.ContainsAny(alias, "*?!/") && !strings.HasPrefix(alias, ".") {
 					*hosts = append(*hosts, alias)
 				}
 			}

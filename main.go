@@ -35,6 +35,11 @@ func run() error {
 		return err
 	}
 	store := workspace.FileStore{Path: storePath}
+	release, err := store.Lock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	ws, err := store.Load()
 	if err != nil {
 		return err
@@ -43,7 +48,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"))
+	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath)
 	if err != nil {
 		return err
 	}
