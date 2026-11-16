@@ -370,6 +370,17 @@ func (m *Model) updateListenerKey(key string) {
 	case "t":
 		m.isShowingAllListeners = !m.isShowingAllListeners
 		m.listenerIndex = 0
+	case "o":
+		listener, ok := m.selectedListener()
+		if !ok {
+			return
+		}
+		forward, ok := m.forwardTo(listener.Port)
+		if !ok {
+			m.message = fmt.Sprintf("port %d has no forward yet; press enter to forward it", listener.Port)
+			return
+		}
+		m.actOnForward(key, forward)
 	case "enter", " ", "f":
 		listener, ok := m.selectedListener()
 		if !ok {
