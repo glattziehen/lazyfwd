@@ -52,13 +52,13 @@ func newHostForm() *form {
 func newForwardForm(direction workspace.Direction) *form {
 	f := &form{kind: formAddForward, direction: direction}
 	if direction == workspace.Local {
-		f.title = "Add local forward (-L): laptop port → remote target"
-		f.labels = []string{"remote target(s)", "laptop port"}
-		f.inputs = []textinput.Model{newField("4966-4968, 8080, or db:5432", ""), newField("auto: target port or nearest free", "")}
+		f.title = "Add local forward (-L): listens on the local end"
+		f.labels = []string{"remote end(s)", "local end"}
+		f.inputs = []textinput.Model{newField("4966-4968, db:5432, or /run/app.sock", ""), newField("auto: target port or nearest free", "")}
 	} else {
-		f.title = "Add remote forward (-R): remote port → laptop target"
-		f.labels = []string{"laptop target(s)", "remote port"}
-		f.inputs = []textinput.Model{newField("3000 or host:3000", ""), newField("auto: same as target port", "")}
+		f.title = "Add remote forward (-R): listens on the remote end"
+		f.labels = []string{"local end(s)", "remote end"}
+		f.inputs = []textinput.Model{newField("3000, host:3000, or /run/app.sock", ""), newField("auto: same as target port", "")}
 	}
 	return newForm(f)
 }
@@ -68,13 +68,26 @@ func newEditForm(forward workspace.Forward) *form {
 	f.kind = formEditForward
 	f.forwardID = forward.ID
 	f.title = "Edit forward"
-	f.labels[0] = "remote target"
+	f.labels[0] = "remote end"
 	if forward.Direction == workspace.Remote {
-		f.labels[0] = "laptop target"
+		f.labels[0] = "local end"
 	}
-	f.inputs[0].SetValue(forward.Target.String())
-	f.inputs[1].SetValue(strconv.Itoa(forward.BindPort))
+	f.inputs[0].SetValue(endText(forward.Target))
+	f.inputs[1].SetValue(endText(forward.Bind))
 	return f
+}
+
+// endText writes an end the way the forms read it back, as short as
+// possible: a port alone when the host is the default, so editing the port
+// is one word to replace.
+func endText(end workspace.End) string {
+	if end.IsSocket() {
+		return end.Path
+	}
+	if end.Host == workspace.DefaultTargetHost {
+		return strconv.Itoa(end.Port)
+	}
+	return end.String()
 }
 
 func newForm(f *form) *form {

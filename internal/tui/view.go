@@ -24,7 +24,7 @@ var (
 	colorFocus   = lipgloss.Color("6") // focused panel, cursor, and form field
 	colorRunning = lipgloss.Color("2")
 	colorFailed  = lipgloss.Color("1")
-	colorLink    = lipgloss.Color("4") // clickable laptop ends
+	colorLink    = lipgloss.Color("4") // clickable local ends
 	colorPin     = lipgloss.Color("3")
 
 	styleFocus   = lipgloss.NewStyle().Foreground(colorFocus)
@@ -197,26 +197,26 @@ func (m Model) hostLines() []string {
 }
 
 // forwardLines renders one row per forward and aligns the arrows after the
-// widest laptop end; the arrow points from the listening end to the target.
+// widest local end; the arrow points from the listening end to the target.
 func (m Model) forwardLines(forwards []workspace.Forward) []string {
-	laptopWidth := 0
+	localWidth := 0
 	for _, forward := range forwards {
-		laptopWidth = max(laptopWidth, len(forward.LaptopAddr().String()))
+		localWidth = max(localWidth, len(forward.LocalEnd().String()))
 	}
 	var lines []string
 	for _, forward := range forwards {
 		status := m.status(forward)
-		laptop := forward.LaptopAddr().String()
-		link := laptop
-		if url, isWeb := forward.LaptopURL(); isWeb {
-			link = hyperlink(url, styleLink.Render(laptop))
+		local := forward.LocalEnd().String()
+		link := local
+		if url, isWeb := forward.LocalURL(); isWeb {
+			link = hyperlink(url, styleLink.Render(local))
 		}
-		padding := strings.Repeat(" ", laptopWidth-len(laptop))
+		padding := strings.Repeat(" ", localWidth-len(local))
 		arrow := "→"
 		if forward.Direction == workspace.Remote {
 			arrow = "←"
 		}
-		remote := styleMuted.Render(forward.Host+":") + forward.RemoteAddr().String()
+		remote := styleMuted.Render(forward.Host+":") + forward.RemoteEnd().String()
 		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), link, padding, styleMuted.Render(arrow), remote))
 	}
 	return lines
@@ -263,7 +263,7 @@ func (m Model) listenerLines() []string {
 		line := fmt.Sprintf("%-6d %s", listener.Port, process)
 		if forward, ok := m.forwardTo(listener.Port); ok {
 			status := m.status(forward)
-			line += "  " + status.style().Render(status.symbol()+" → "+forward.LaptopAddr().String())
+			line += "  " + status.style().Render(status.symbol()+" → "+forward.LocalEnd().String())
 		}
 		lines = append(lines, line)
 	}
