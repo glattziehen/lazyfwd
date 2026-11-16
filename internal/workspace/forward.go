@@ -56,9 +56,15 @@ func (f Forward) RemoteAddr() Addr {
 	return Addr{Host: "localhost", Port: f.BindPort}
 }
 
-// LaptopURL is the browser URL of the laptop endpoint.
-func (f Forward) LaptopURL() string {
-	return "http://" + f.LaptopAddr().String()
+// LaptopURL is the browser URL of the laptop endpoint, with https for a
+// target on 443 or 8443. It is false for a target on a known non-web port,
+// such as PostgreSQL's 5432.
+func (f Forward) LaptopURL() (string, bool) {
+	scheme, isWeb := webScheme(f.Target.Port)
+	if !isWeb {
+		return "", false
+	}
+	return scheme + "://" + f.LaptopAddr().String(), true
 }
 
 // SSHArgs are the ssh arguments that open this forward and nothing else.

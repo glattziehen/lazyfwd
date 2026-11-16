@@ -207,7 +207,10 @@ func (m Model) forwardLines(forwards []workspace.Forward) []string {
 	for _, forward := range forwards {
 		status := m.status(forward)
 		laptop := forward.LaptopAddr().String()
-		link := hyperlink(forward.LaptopURL(), styleLink.Render(laptop))
+		link := laptop
+		if url, isWeb := forward.LaptopURL(); isWeb {
+			link = hyperlink(url, styleLink.Render(laptop))
+		}
 		padding := strings.Repeat(" ", laptopWidth-len(laptop))
 		arrow := "→"
 		if forward.Direction == workspace.Remote {
