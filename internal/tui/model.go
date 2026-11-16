@@ -229,12 +229,7 @@ func (m *Model) updateForwardKey(key string) {
 	}
 	switch key {
 	case " ", "s":
-		if m.supervisor.IsRunning(forward.ID) {
-			m.supervisor.Stop(forward.ID)
-			delete(m.failures, forward.ID)
-			return
-		}
-		m.start(forward)
+		m.toggle(forward)
 	case "e":
 		m.form = newEditForm(forward)
 	case "d":
@@ -265,7 +260,7 @@ func (m *Model) updateListenerKey(key string) {
 			return
 		}
 		if forward, ok := m.forwardTo(listener.Port); ok {
-			m.message = fmt.Sprintf("port %d is already forwarded to %s", listener.Port, forward.LaptopAddr())
+			m.toggle(forward)
 			return
 		}
 		target := workspace.Addr{Host: workspace.DefaultTargetHost, Port: listener.Port}
@@ -380,6 +375,16 @@ func (m *Model) submit() error {
 		return nil
 	}
 	return nil
+}
+
+// toggle stops a running forward and starts a stopped or failed one.
+func (m *Model) toggle(forward workspace.Forward) {
+	if m.supervisor.IsRunning(forward.ID) {
+		m.supervisor.Stop(forward.ID)
+		delete(m.failures, forward.ID)
+		return
+	}
+	m.start(forward)
 }
 
 func (m *Model) start(forward workspace.Forward) {
