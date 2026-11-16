@@ -20,6 +20,11 @@ pre-commit:
       glob: "{*.go,go.mod,go.sum,.golangci.yml}"
       run: pixi {run} golangci-lint run --fix ./...
       stage_fixed: true
+    # The same for the Windows build, whose _windows.go files the host's run
+    # skips. It does not fix, so a Windows-only finding fails the commit.
+    - name: lint-windows
+      glob: "{*.go,go.mod,go.sum,.golangci.yml}"
+      run: GOOS=windows pixi {run} golangci-lint run ./...
     - name: go-mod-tidy
       glob: "{*.go,go.mod,go.sum}"
       run: pixi {run} go mod tidy

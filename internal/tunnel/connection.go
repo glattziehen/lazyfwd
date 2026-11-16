@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/glattziehen/lazyfwd/internal/workspace"
@@ -328,11 +327,4 @@ func (c *connection) closeMaster() {
 	}
 	c.masterPID = 0
 	clear(c.established)
-}
-
-// isProcessAlive reports whether pid exists. The master is not lazyfwd's
-// child, so lazyfwd cannot wait for it.
-func isProcessAlive(pid int) bool {
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
 }

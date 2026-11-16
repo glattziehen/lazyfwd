@@ -147,6 +147,11 @@ func TestSaveWritesThroughSymlinkAndKeepsMode(t *testing.T) {
 	if err := os.Symlink(target, link); err != nil {
 		t.Fatal(err)
 	}
+	// Windows keeps only a read-only flag, so 0600 reads back as 0666 there.
+	before, err := os.Stat(target)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var ws Workspace
 	_ = ws.AddHost("box")
 
@@ -158,8 +163,8 @@ func TestSaveWritesThroughSymlinkAndKeepsMode(t *testing.T) {
 		t.Fatalf("link replaced: %v, %v", info.Mode(), err)
 	}
 	info, err := os.Stat(target)
-	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("target mode %v, %v; want 0600", info.Mode().Perm(), err)
+	if err != nil || info.Mode().Perm() != before.Mode().Perm() {
+		t.Fatalf("target mode %v, %v; want %v", info.Mode().Perm(), err, before.Mode().Perm())
 	}
 	if loaded, err := (FileStore{Path: target}).Load(); err != nil || !slices.Equal(loaded.ManualHosts, []string{"box"}) {
 		t.Fatalf("target holds %+v, %v", loaded, err)

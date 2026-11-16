@@ -78,3 +78,16 @@ func TestCheckLocalPortAcceptsPortInTimeWait(t *testing.T) {
 		t.Errorf("port %d in TIME_WAIT: %v", port, err)
 	}
 }
+
+// ssh binds localhost on both families, so a port another program holds on
+// ::1 alone is taken. The bind error for it differs per system.
+func TestIsLocalPortFreeSeesIPv6OnlyListener(t *testing.T) {
+	listener, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		t.Skipf("no IPv6 loopback: %v", err)
+	}
+	defer func() { _ = listener.Close() }()
+	if port := listener.Addr().(*net.TCPAddr).Port; IsLocalPortFree(port) {
+		t.Errorf("port %d with a listener on ::1 reported free", port)
+	}
+}
