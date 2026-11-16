@@ -1,6 +1,9 @@
+//go:build unix
+
 package tunnel
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -140,6 +144,48 @@ func (c *connection) run() {
 func (c *connection) close() {
 	close(c.quit)
 	<-c.closed
+}
+
+// startForward queues the forward's start behind the host's earlier
+// operations.
+func (c *connection) startForward(ctx context.Context, forward workspace.Forward, generation uint64) {
+	queuedAt := time.Now()
+	c.enqueue(func() { c.start(ctx, forward, generation, queuedAt) })
+}
+
+// stopForward queues the forward's stop behind the host's earlier operations.
+func (c *connection) stopForward(id workspace.ForwardID) {
+	c.enqueue(func() { c.stop(id) })
+}
+
+// runCommand runs command on the host over the master, opening the master first if
+// needed; Supervisor.Run documents the result.
+func (c *connection) runCommand(ctx context.Context, command string) (string, error) {
+	connected := make(chan error, 1)
+	queuedAt := time.Now()
+	c.enqueue(func() { connected <- c.ensureMaster(ctx, queuedAt) })
+	select {
+	case err := <-connected:
+		if err != nil {
+			return "", err
+		}
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	cmd := exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, c.host, command)...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	err := cmd.Run()
+	// ssh exits 255 for its own errors; other statuses are the command's.
+	var exitErr *exec.ExitError
+	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() != 255) {
+		return stdout.String(), err
+	}
+	reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
+	if reason == "" {
+		reason = err.Error()
+	}
+	return stdout.String(), errors.New(strings.TrimSpace(reason))
 }
 
 // start puts the forward on the master, opening the master first if needed,

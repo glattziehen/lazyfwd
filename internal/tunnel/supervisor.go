@@ -2,13 +2,9 @@
 package tunnel
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"os/exec"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
@@ -126,8 +122,7 @@ func (s *Supervisor) Start(forward workspace.Forward) {
 	c := s.connection(forward.Host)
 	// Send unlocked: the connection takes s.mu while it works.
 	s.mu.Unlock()
-	queuedAt := time.Now()
-	c.enqueue(func() { c.start(s.ctx, forward, generation, queuedAt) })
+	c.startForward(s.ctx, forward, generation)
 }
 
 // Stop closes the forward and forgets its failure; stopping a stopped
@@ -143,7 +138,7 @@ func (s *Supervisor) Stop(id workspace.ForwardID) {
 	delete(s.running, id)
 	c := s.connection(entry.forward.Host)
 	s.mu.Unlock()
-	c.enqueue(func() { c.stop(id) })
+	c.stopForward(id)
 }
 
 // StopAll closes every connection, which ends all forwards, and removes the
@@ -204,31 +199,7 @@ func (s *Supervisor) Run(ctx context.Context, host, command string) (string, err
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	defer context.AfterFunc(s.ctx, cancel)()
-	connected := make(chan error, 1)
-	queuedAt := time.Now()
-	c.enqueue(func() { connected <- c.ensureMaster(ctx, queuedAt) })
-	select {
-	case err := <-connected:
-		if err != nil {
-			return "", err
-		}
-	case <-ctx.Done():
-		return "", ctx.Err()
-	}
-	cmd := exec.CommandContext(ctx, "ssh", remoteCommandArgs(c.socketPath, host, command)...)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := cmd.Run()
-	// ssh exits 255 for its own errors; other statuses are the command's.
-	var exitErr *exec.ExitError
-	if err == nil || (errors.As(err, &exitErr) && exitErr.ExitCode() != 255) {
-		return stdout.String(), err
-	}
-	reason, _, _ := strings.Cut(strings.TrimSpace(stderr.String()), "\n")
-	if reason == "" {
-		reason = err.Error()
-	}
-	return stdout.String(), errors.New(strings.TrimSpace(reason))
+	return c.runCommand(ctx, command)
 }
 
 // connection returns host's connection, creating it on first use; s.mu must
