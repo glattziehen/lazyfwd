@@ -27,6 +27,6 @@ var keyHelpRows = []keyHelpRow{
 	{"d", "Forwards", "delete the forward"},
 	{"o", "Forwards", "open the laptop end in the browser"},
 	{"a", "Listening", "add a local forward"},
-	{"enter", "Listening", "forward this port to the laptop"},
+	{"space, enter, f", "Listening", "forward this port, or start or stop its forward"},
 	{"t", "Listening", "show your ports or all ports"},
 }
