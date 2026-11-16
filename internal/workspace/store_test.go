@@ -103,3 +103,40 @@ func TestLoadGivesEveryForwardItsOwnID(t *testing.T) {
 		t.Fatalf("forwards left after deleting the added one: %v", ports)
 	}
 }
+
+// Dotfiles managers keep workspace.json as a symlink into their repository;
+// saving must update the target and keep the link and the file's mode.
+func TestSaveWritesThroughSymlinkAndKeepsMode(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "dotfiles", "workspace.json")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "config", "workspace.json")
+	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	var ws Workspace
+	_ = ws.AddHost("box")
+
+	if err := (FileStore{Path: link}).Save(ws); err != nil {
+		t.Fatal(err)
+	}
+
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("link replaced: %v, %v", info.Mode(), err)
+	}
+	info, err := os.Stat(target)
+	if err != nil || info.Mode().Perm() != 0o600 {
+		t.Fatalf("target mode %v, %v; want 0600", info.Mode().Perm(), err)
+	}
+	if loaded, err := (FileStore{Path: target}).Load(); err != nil || !slices.Equal(loaded.ManualHosts, []string{"box"}) {
+		t.Fatalf("target holds %+v, %v", loaded, err)
+	}
+}
