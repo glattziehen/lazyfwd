@@ -85,10 +85,14 @@ func probeArgs(socketPath, host, target string) []string {
 }
 
 // removeSocketCommand removes path on a remote host if it is a socket. It
-// runs under sh, whatever the login shell; socket paths hold no characters
-// that need quoting.
-func removeSocketCommand(path string) string {
-	return "sh -c 'test -S " + path + " && rm -f " + path + "'"
+// runs under sh, whatever the login shell. The login shell, which may be fish
+// or csh, reads the command before sh does, so no quoting is safe for both:
+// it refuses a path that would need quoting instead of relying on callers.
+func removeSocketCommand(path string) (string, error) {
+	if err := workspace.ValidateSocketPath(path); err != nil {
+		return "", err
+	}
+	return "sh -c 'test -S " + path + " && rm -f " + path + "'", nil
 }
 
 func forwardArgs(socketPath string, forward workspace.Forward) []string {
