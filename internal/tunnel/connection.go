@@ -115,8 +115,14 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 	if !c.supervisor.isCurrent(forward.ID, generation) {
 		return
 	}
-	if forward.Direction == workspace.Local && forward.Bind.IsSocket() {
-		if err := freeLocalSocket(forward.Bind.Path); err != nil {
+	if forward.Direction == workspace.Local {
+		var err error
+		if forward.Bind.IsSocket() {
+			err = freeLocalSocket(forward.Bind.Path)
+		} else {
+			err = checkLocalPort(forward.Bind.Port)
+		}
+		if err != nil {
 			c.supervisor.fail(forward.ID, generation, err.Error(), false)
 			return
 		}
