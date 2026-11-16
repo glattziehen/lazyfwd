@@ -84,14 +84,14 @@ func (s FileStore) Lock() (release func(), err error) {
 	}
 	err = syscall.Flock(int(file.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if errors.Is(err, syscall.EWOULDBLOCK) {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("another lazyfwd is already running with %s; switch to it or quit it first", s.Path)
 	}
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("lock %s: %w", s.Path, err)
 	}
-	return func() { file.Close() }, nil
+	return func() { _ = file.Close() }, nil
 }
 
 // forwardJSON is a Forward as workspace.json stores it. Files from before

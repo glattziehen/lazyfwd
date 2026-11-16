@@ -59,7 +59,7 @@ func TestEditKeepsRunningForwardsOwnPort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	port := listener.Addr().(*net.TCPAddr).Port
 	var ws workspace.Workspace
 	added, err := ws.AddForwards("box", workspace.Local, []workspace.End{{Host: "localhost", Port: port}}, workspace.End{Host: workspace.BindHost, Port: port}, func(int) bool { return true })

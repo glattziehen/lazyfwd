@@ -1,0 +1,45 @@
+version: "2"
+
+linters:
+  # The standard set (errcheck, govet, ineffassign, staticcheck, unused) plus
+  # linters that catch bugs rather than enforce style.
+  enable:
+    - bidichk # Unicode bidi control characters that make code read differently than it runs
+    - durationcheck # two time.Durations multiplied together
+    - errorlint # == or a type assertion on a wrapped error, and %v where %w was meant
+    - gocritic # default checks: suspicious conditions, append to the wrong slice, and similar
+    - makezero # append to a slice made with a non-zero length
+    - misspell # misspelled words in comments and strings
+    - nilerr # return nil right after checking err != nil
+    - nilnesserr # return of a different, nil error after checking err != nil
+    - nolintlint # nolint directives without a linter name, a reason, or a finding to silence
+    - predeclared # identifiers that shadow builtins such as len or new
+    - reassign # assignment to another package's variables, such as io.EOF
+    - unconvert # conversions to the type a value already has
+    - wastedassign # assignments whose value is never read
+  settings:
+    govet:
+      # Adds nilness, unusedwrite, and the other analyzers go vet leaves out.
+      enable-all: true
+      disable:
+        - fieldalignment # struct layout for memory, not correctness
+        - shadow # flags every err := in a nested scope
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+  exclusions:
+    rules:
+      # The test checks that ParseBind trims surrounding spaces.
+      - path: internal/workspace/targets_test.go
+        linters: [gocritic]
+        text: "mapKey: suspicious whitespace"
+
+formatters:
+  enable:
+    - gofumpt # gofmt plus stricter rules that leave less to taste
+    - goimports # gofmt plus standard-library imports grouped apart from the rest
+
+issues:
+  # Report every finding, not the first few per linter.
+  max-issues-per-linter: 0
+  max-same-issues: 0

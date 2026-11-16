@@ -30,7 +30,6 @@ func TestLoadReadsWorkspaceFromBeforeSockets(t *testing.T) {
 	store := FileStore{Path: filepath.Join("testdata", "workspace_before_sockets.json")}
 
 	ws, err := store.Load()
-
 	if err != nil {
 		t.Fatal(err)
 	}

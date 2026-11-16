@@ -1,0 +1,32 @@
+output: [summary]
+no_auto_install: true
+templates:
+  run: run --as-is --quiet --no-progress
+pre-commit:
+  # A commit gets the fixes staged; CI, which runs this over every file
+  # (`pixi run lint`), fails on them instead and shows the diff.
+  fail_on_changes: ci
+  fail_on_changes_diff: true
+  jobs:
+    - name: pixi-install
+      run: pixi install --quiet --no-progress
+    - name: format
+      glob: "*.go"
+      run: pixi {run} golangci-lint fmt {staged_files}
+      stage_fixed: true
+    # golangci-lint checks whole packages, so it runs on all of them; the
+    # module is small enough that this stays fast.
+    - name: lint
+      glob: "{*.go,go.mod,go.sum,.golangci.yml}"
+      run: pixi {run} golangci-lint run --fix ./...
+      stage_fixed: true
+    - name: go-mod-tidy
+      glob: "{*.go,go.mod,go.sum}"
+      run: pixi {run} go mod tidy
+      stage_fixed: true
+    - name: actionlint
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: pixi {run} actionlint {staged_files}
+    - name: trailing-whitespace
+      exclude: [pixi.lock]
+      run: "! grep -nIE '[[:space:]]+$' {staged_files}"
