@@ -34,6 +34,24 @@ func TestTryLockRefusesASecondHolder(t *testing.T) {
 	}
 }
 
+// Other processes read what the holder writes to the locked file, such as
+// its address.
+func TestLockedFileStaysReadable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lock")
+	file := openLockFile(t, path)
+	if err := TryLock(file); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.WriteAt([]byte("address"), 0); err != nil {
+		t.Fatal(err)
+	}
+
+	content, err := os.ReadFile(path)
+	if err != nil || string(content) != "address" {
+		t.Fatalf("read %q, %v; want %q", content, err, "address")
+	}
+}
+
 func TestTryLockSucceedsOnceTheHolderCloses(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lock")
 	first := openLockFile(t, path)
