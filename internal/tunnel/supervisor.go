@@ -1,4 +1,5 @@
-// Package tunnel runs forwards on one shared ssh connection per host.
+// Package tunnel runs forwards over ssh: on one shared connection per host on
+// Linux and macOS, and as one ssh process per forward on Windows.
 package tunnel
 
 import (
