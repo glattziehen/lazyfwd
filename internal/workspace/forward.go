@@ -10,9 +10,9 @@ import (
 type Direction string
 
 const (
-	// Local listens on the laptop and connects to Target from the remote host (ssh -L).
+	// Local listens on the local machine and connects to Target from the remote host (ssh -L).
 	Local Direction = "local"
-	// Remote listens on the remote host and connects to Target from the laptop (ssh -R).
+	// Remote listens on the remote host and connects to Target from the local machine (ssh -R).
 	Remote Direction = "remote"
 )
 
@@ -34,37 +34,37 @@ type Forward struct {
 	ID        ForwardID `json:"id"`
 	Host      string    `json:"host"`
 	Direction Direction `json:"direction"`
-	// BindPort is the port that listens: on the laptop for Local, on the remote host for Remote.
+	// BindPort is the port that listens: on the local machine for Local, on the remote host for Remote.
 	BindPort int `json:"bind_port"`
-	// Target is resolved on the remote host for Local, on the laptop for Remote.
+	// Target is resolved on the remote host for Local, on the local machine for Remote.
 	Target Addr `json:"target"`
 }
 
-// LaptopAddr is the forward's endpoint on the laptop.
-func (f Forward) LaptopAddr() Addr {
+// LocalEnd is the forward's end on the local machine.
+func (f Forward) LocalEnd() Addr {
 	if f.Direction == Local {
 		return Addr{Host: "localhost", Port: f.BindPort}
 	}
 	return f.Target
 }
 
-// RemoteAddr is the forward's endpoint on the remote host.
-func (f Forward) RemoteAddr() Addr {
+// RemoteEnd is the forward's end on the remote host.
+func (f Forward) RemoteEnd() Addr {
 	if f.Direction == Local {
 		return f.Target
 	}
 	return Addr{Host: "localhost", Port: f.BindPort}
 }
 
-// LaptopURL is the browser URL of the laptop endpoint, with https for a
+// LocalURL is the browser URL of the local end, with https for a
 // target on 443 or 8443. It is false for a target on a known non-web port,
 // such as PostgreSQL's 5432.
-func (f Forward) LaptopURL() (string, bool) {
+func (f Forward) LocalURL() (string, bool) {
 	scheme, isWeb := webScheme(f.Target.Port)
 	if !isWeb {
 		return "", false
 	}
-	return scheme + "://" + f.LaptopAddr().String(), true
+	return scheme + "://" + f.LocalEnd().String(), true
 }
 
 // SSHArgs are the ssh arguments that request this forward, such as

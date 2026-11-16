@@ -52,12 +52,12 @@ func newHostForm() *form {
 func newForwardForm(direction workspace.Direction) *form {
 	f := &form{kind: formAddForward, direction: direction}
 	if direction == workspace.Local {
-		f.title = "Add local forward (-L): laptop port → remote target"
-		f.labels = []string{"remote target(s)", "laptop port"}
+		f.title = "Add local forward (-L): local port → remote target"
+		f.labels = []string{"remote target(s)", "local port"}
 		f.inputs = []textinput.Model{newField("4966-4968, 8080, or db:5432", ""), newField("auto: target port or nearest free", "")}
 	} else {
-		f.title = "Add remote forward (-R): remote port → laptop target"
-		f.labels = []string{"laptop target(s)", "remote port"}
+		f.title = "Add remote forward (-R): remote port → local target"
+		f.labels = []string{"local target(s)", "remote port"}
 		f.inputs = []textinput.Model{newField("3000 or host:3000", ""), newField("auto: same as target port", "")}
 	}
 	return newForm(f)
@@ -70,7 +70,7 @@ func newEditForm(forward workspace.Forward) *form {
 	f.title = "Edit forward"
 	f.labels[0] = "remote target"
 	if forward.Direction == workspace.Remote {
-		f.labels[0] = "laptop target"
+		f.labels[0] = "local target"
 	}
 	f.inputs[0].SetValue(forward.Target.String())
 	f.inputs[1].SetValue(strconv.Itoa(forward.BindPort))

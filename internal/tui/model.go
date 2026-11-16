@@ -346,9 +346,9 @@ func (m *Model) actOnForward(key string, forward workspace.Forward) {
 		m.save()
 		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
-		url, isWeb := forward.LaptopURL()
+		url, isWeb := forward.LocalURL()
 		if !isWeb {
-			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LaptopAddr())
+			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LocalEnd())
 			return
 		}
 		if err := browser.Open(url); err != nil {
@@ -376,7 +376,7 @@ func (m *Model) updateListenerKey(key string) {
 			return
 		}
 		target := workspace.Addr{Host: workspace.DefaultTargetHost, Port: listener.Port}
-		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.Addr{target}, 0, tunnel.IsLaptopPortFree)
+		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.Addr{target}, 0, tunnel.IsLocalPortFree)
 		if err != nil {
 			m.message = err.Error()
 			return
@@ -449,7 +449,7 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bindPort, tunnel.IsLaptopPortFree)
+		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bindPort, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}
@@ -472,11 +472,11 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		// Stop first so the forward's own laptop port counts as free again.
+		// Stop first so the forward's own local port counts as free again.
 		wasRunning := m.supervisor.IsRunning(f.forwardID)
 		m.supervisor.Stop(f.forwardID)
 		delete(m.failures, f.forwardID)
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bindPort, tunnel.IsLaptopPortFree)
+		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bindPort, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}

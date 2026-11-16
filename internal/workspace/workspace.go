@@ -109,9 +109,9 @@ func (w Workspace) ForwardsOf(host string) []Forward {
 }
 
 // AddForwards adds one forward per target through host. A bindPort of 0 picks
-// one automatically: for Local, the target port if free on the laptop, else
+// one automatically: for Local, the target port if free on the local machine, else
 // the nearest free port; for Remote, the target port. isFree reports whether
-// a laptop port is free right now.
+// a local port is free right now.
 func (w *Workspace) AddForwards(host string, direction Direction, targets []Addr, bindPort int, isFree func(int) bool) ([]Forward, error) {
 	if bindPort != 0 && len(targets) > 1 {
 		return nil, fmt.Errorf("set a bind port only for a single target, got %d targets", len(targets))
@@ -151,7 +151,7 @@ func (w *Workspace) DeleteForward(id ForwardID) {
 	w.Forwards = slices.DeleteFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
 }
 
-// bindPorts resolves the bind port of each target. Laptop ports held by other
+// bindPorts resolves the bind port of each target. Local ports held by other
 // forwards, running or not, count as taken, so starting them later cannot collide.
 func (w Workspace) bindPorts(direction Direction, targets []Addr, bindPort int, isFree func(int) bool, editedID ForwardID) ([]int, error) {
 	if bindPort != 0 {
