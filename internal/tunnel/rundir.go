@@ -1,12 +1,12 @@
 package tunnel
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -130,7 +130,7 @@ func closeLeftovers(base string) {
 		for _, socket := range sockets {
 			if name := socket.Name(); name != lockName && !strings.HasSuffix(name, logExt) {
 				// -O ignores the destination, but ssh requires one.
-				_ = exec.Command("ssh", controlArgs(filepath.Join(dir, name), "exit", "lazyfwd")...).Run()
+				_, _ = runControl(context.Background(), controlArgs(filepath.Join(dir, name), "exit", "lazyfwd"))
 			}
 		}
 		_ = os.RemoveAll(dir)
