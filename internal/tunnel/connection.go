@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 const (
