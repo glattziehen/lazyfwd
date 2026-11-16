@@ -87,3 +87,10 @@ func TestFileStoreRoundTrip(t *testing.T) {
 		t.Fatalf("loaded %+v, %v; want %+v", loaded, err, ws)
 	}
 }
+
+func TestAddHostRejectsNameThatSSHReadsAsOption(t *testing.T) {
+	var ws Workspace
+	if err := ws.AddHost("-oProxyCommand=touch /tmp/pwned"); err == nil {
+		t.Fatal("AddHost accepted a name starting with -")
+	}
+}
