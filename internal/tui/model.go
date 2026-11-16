@@ -228,7 +228,7 @@ func (m *Model) updateHostKey(key string) tea.Cmd {
 			return nil
 		}
 		if !host.IsManual {
-			m.message = host.Name + " comes from ~/.ssh/config; edit that file to remove it"
+			m.message = host.Name + " comes from your ssh config (~/.ssh/config or /etc/ssh/ssh_config); remove it there"
 			return nil
 		}
 		m.workspace.RemoveHost(host.Name)

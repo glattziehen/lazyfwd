@@ -40,7 +40,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"))
+	sshConfigHosts, err := sshconfig.Hosts(filepath.Join(home, ".ssh", "config"), sshconfig.SystemConfigPath)
 	if err != nil {
 		return err
 	}
