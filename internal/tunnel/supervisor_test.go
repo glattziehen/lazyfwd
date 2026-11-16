@@ -132,3 +132,16 @@ func TestStopAllEndsAHangingFetch(t *testing.T) {
 		t.Errorf("ssh %d still runs after StopAll", pid)
 	}
 }
+
+// ssh reports some errors, such as an invalid host name or a config error,
+// before -E opens its log; the failure must still carry ssh's words.
+func TestConnectFailureShowsWhatSSHPrintedBeforeItsLog(t *testing.T) {
+	fakeSSH(t, "echo 'hostname contains invalid characters' >&2; exit 255")
+	supervisor := newSupervisor(t)
+
+	_, err := supervisor.Run(context.Background(), "bad", "true")
+
+	if err == nil || err.Error() != "hostname contains invalid characters" {
+		t.Fatalf("got %v", err)
+	}
+}

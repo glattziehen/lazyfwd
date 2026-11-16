@@ -270,7 +270,15 @@ func (c *connection) openMaster(ctx context.Context) error {
 	// ssh -f returns once authenticated and leaves the master running.
 	openCtx, cancel := context.WithTimeout(ctx, masterOpenTimeout)
 	defer cancel()
-	err := exec.CommandContext(openCtx, "ssh", batchMasterArgs(c.socketPath, c.logPath, c.host)...).Run()
+	cmd := exec.CommandContext(openCtx, "ssh", batchMasterArgs(c.socketPath, c.logPath, c.host)...)
+	// ssh prints some errors, such as a config error, before -E opens the
+	// log, so its stderr goes to the log too. A file, unlike a pipe, does not
+	// keep Run waiting for the master that ssh -f leaves running.
+	if log, err := os.OpenFile(c.logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600); err == nil {
+		defer log.Close()
+		cmd.Stderr = log
+	}
+	err := cmd.Run()
 	if errors.Is(openCtx.Err(), context.DeadlineExceeded) {
 		return &ConnectError{Host: c.host, Reason: fmt.Sprintf("%s did not finish connecting within %s", c.host, masterOpenTimeout)}
 	}
