@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -54,6 +55,40 @@ type Forward struct {
 	// Target is where the forward connects: from the remote host for Local,
 	// from the local machine for Remote.
 	Target End
+}
+
+// validate reports why the forms could not have made this forward.
+func (f Forward) validate() error {
+	if err := validateHostName(f.Host); err != nil {
+		return err
+	}
+	if f.Direction != Local && f.Direction != Remote {
+		return fmt.Errorf("direction must be %q or %q, got %q", Local, Remote, f.Direction)
+	}
+	if err := f.Bind.validate(); err != nil {
+		return fmt.Errorf("listening end: %w", err)
+	}
+	if !f.Bind.IsSocket() && f.Bind.Host != BindHost {
+		return fmt.Errorf("listening end: host must be %s, got %q", BindHost, f.Bind.Host)
+	}
+	if err := f.Target.validate(); err != nil {
+		return fmt.Errorf("target: %w", err)
+	}
+	return nil
+}
+
+// validate reports why the forms could not have made this end.
+func (e End) validate() error {
+	if e.IsSocket() {
+		if e.Host != "" || e.Port != 0 {
+			return fmt.Errorf("socket end %s also has a host or port", e.Path)
+		}
+		return ValidateSocketPath(e.Path)
+	}
+	if err := validateTargetHost(e.Host); err != nil {
+		return err
+	}
+	return validatePort(e.Port)
 }
 
 // LocalEnd is the forward's end on the local machine.

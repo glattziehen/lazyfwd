@@ -91,3 +91,14 @@ func TestControlFailureKeepsSSHsReason(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// The remote shell command must not depend on callers having checked the
+// path: it refuses one the forms would refuse.
+func TestRemoveSocketCommandRefusesUnsafePath(t *testing.T) {
+	if command, err := removeSocketCommand("/x/a.sock;touch /tmp/INJECTED;true"); err == nil {
+		t.Fatalf("built %q", command)
+	}
+	if _, err := removeSocketCommand("/tmp/app.sock"); err != nil {
+		t.Fatalf("refused a safe path: %v", err)
+	}
+}

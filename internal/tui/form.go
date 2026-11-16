@@ -35,7 +35,7 @@ func newField(placeholder, value string) textinput.Model {
 	input.SetValue(value)
 	input.Prompt = ""
 	input.CharLimit = 256
-	input.Width = 40
+	input.Width = 42
 	input.PlaceholderStyle = styleMuted
 	return input
 }
@@ -54,11 +54,11 @@ func newForwardForm(direction workspace.Direction) *form {
 	if direction == workspace.Local {
 		f.title = "Add local forward (-L): listens on the local end"
 		f.labels = []string{"remote end(s)", "local end"}
-		f.inputs = []textinput.Model{newField("4966-4968, db:5432, or /run/app.sock", ""), newField("auto: target port or nearest free", "")}
+		f.inputs = []textinput.Model{newField("4966-4968, db:5432, or /run/app.sock", ""), newField("8080 or /tmp/app.sock; empty: auto port", "")}
 	} else {
 		f.title = "Add remote forward (-R): listens on the remote end"
 		f.labels = []string{"local end(s)", "remote end"}
-		f.inputs = []textinput.Model{newField("3000, host:3000, or /run/app.sock", ""), newField("auto: same as target port", "")}
+		f.inputs = []textinput.Model{newField("3000, host:3000, or /run/app.sock", ""), newField("8080 or /tmp/app.sock; empty: target port", "")}
 	}
 	return newForm(f)
 }

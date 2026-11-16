@@ -224,8 +224,11 @@ func (c *connection) removeStaleRemoteSocket(ctx context.Context, forward worksp
 	if c.isRemoteListening(ctx, forward.Bind.Path) {
 		return false
 	}
-	command := removeSocketCommand(forward.Bind.Path)
-	_, err := runControl(ctx, remoteCommandArgs(c.socketPath, c.host, command))
+	command, err := removeSocketCommand(forward.Bind.Path)
+	if err != nil {
+		return false
+	}
+	_, err = runControl(ctx, remoteCommandArgs(c.socketPath, c.host, command))
 	return err == nil
 }
 
