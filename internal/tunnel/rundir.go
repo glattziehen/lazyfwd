@@ -134,7 +134,7 @@ func closeLeftovers(base string) {
 			}
 		}
 		_ = os.RemoveAll(dir)
-		lock.Close()
+		_ = lock.Close()
 	}
 }
 
@@ -150,7 +150,7 @@ func tryLock(path string) (*os.File, error) {
 	if err == nil {
 		return lock, nil
 	}
-	lock.Close()
+	_ = lock.Close()
 	if errors.Is(err, syscall.EWOULDBLOCK) {
 		return nil, nil
 	}

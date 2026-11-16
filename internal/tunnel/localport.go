@@ -25,7 +25,7 @@ func IsLocalPortFree(port int) bool {
 	if err != nil {
 		return false
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	listener6, err := config.Listen(context.Background(), "tcp6", net.JoinHostPort("::1", portText))
 	if err != nil {
 		return !errors.Is(err, syscall.EADDRINUSE)
@@ -49,7 +49,7 @@ func checkLocalPort(port int) error {
 	for _, host := range loopbackHosts {
 		connection, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), portProbeTimeout)
 		if err == nil {
-			connection.Close()
+			_ = connection.Close()
 			return portInUseError(port)
 		}
 	}

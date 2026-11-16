@@ -20,7 +20,7 @@ func TestIsLocalPortFreeSeesWildcardListener(t *testing.T) {
 		if IsLocalPortFree(port) {
 			t.Errorf("port %d with a listener on %s reported free", port, address)
 		}
-		listener.Close()
+		_ = listener.Close()
 	}
 }
 
@@ -29,7 +29,7 @@ func TestIsLocalPortFreeSeesLoopbackListener(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	if port := listener.Addr().(*net.TCPAddr).Port; IsLocalPortFree(port) {
 		t.Errorf("port %d with a loopback listener reported free", port)
 	}
@@ -49,7 +49,7 @@ func TestCheckLocalPortSeesListenerOnEitherLoopback(t *testing.T) {
 		if err := checkLocalPort(port); err == nil || err.Error() != want {
 			t.Errorf("listener on %s: got %v, want %q", address, err, want)
 		}
-		listener.Close()
+		_ = listener.Close()
 	}
 }
 
@@ -71,9 +71,9 @@ func TestCheckLocalPortAcceptsPortInTimeWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The side that closes first holds TIME_WAIT on the listener's port.
-	server.Close()
-	client.Close()
-	listener.Close()
+	_ = server.Close()
+	_ = client.Close()
+	_ = listener.Close()
 	if err := checkLocalPort(port); err != nil {
 		t.Errorf("port %d in TIME_WAIT: %v", port, err)
 	}

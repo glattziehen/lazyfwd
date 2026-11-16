@@ -275,7 +275,7 @@ func (c *connection) openMaster(ctx context.Context) error {
 	// log, so its stderr goes to the log too. A file, unlike a pipe, does not
 	// keep Run waiting for the master that ssh -f leaves running.
 	if log, err := os.OpenFile(c.logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600); err == nil {
-		defer log.Close()
+		defer func() { _ = log.Close() }()
 		cmd.Stderr = log
 	}
 	err := cmd.Run()

@@ -26,7 +26,7 @@ func freeLocalSocket(path string) error {
 	}
 	connection, err := net.Dial("unix", path)
 	if err == nil {
-		connection.Close()
+		_ = connection.Close()
 		return fmt.Errorf("%s is in use by another program", path)
 	}
 	if !errors.Is(err, syscall.ECONNREFUSED) {

@@ -22,7 +22,7 @@ func TestOpenRunDirRemovesOnlyUnlockedLeftovers(t *testing.T) {
 	if err != nil || lock == nil {
 		t.Fatalf("lock held dir: %v", err)
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 
 	dir, err := openRunDir(base)
 	if err != nil {
