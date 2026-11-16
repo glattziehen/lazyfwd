@@ -27,6 +27,11 @@ func run() error {
 		return err
 	}
 	store := workspace.FileStore{Path: storePath}
+	release, err := store.Lock()
+	if err != nil {
+		return err
+	}
+	defer release()
 	ws, err := store.Load()
 	if err != nil {
 		return err
