@@ -293,8 +293,8 @@ func (o *Owner) ToggleForward(id workspace.ForwardID) error {
 	return nil
 }
 
-// AwaitStart waits while the forward is starting, until ctx ends, and
-// returns its state then.
+// AwaitStart waits while the forward is starting, until ctx ends or the
+// Owner closes, and returns its state then.
 func (o *Owner) AwaitStart(ctx context.Context, id workspace.ForwardID) (ForwardState, error) {
 	events, cancel := o.Subscribe()
 	defer cancel()
@@ -309,6 +309,9 @@ func (o *Owner) AwaitStart(ctx context.Context, id workspace.ForwardID) (Forward
 		select {
 		case <-events:
 		case <-ctx.Done():
+			return state, nil
+		case <-o.done:
+			state, _ := o.State().Forward(id)
 			return state, nil
 		}
 	}
