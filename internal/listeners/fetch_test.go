@@ -49,7 +49,7 @@ func TestFetchUsesScriptOutputDespiteAFailedExit(t *testing.T) {
 
 	found, err := Fetch(runner(output, exitError(t)), "box")
 
-	if err != nil || len(found) != 1 || found[0].Port != 8080 {
+	if err != nil || len(found.Listeners) != 1 || found.Listeners[0].Port != 8080 {
 		t.Fatalf("got %v, %v", found, err)
 	}
 }

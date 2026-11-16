@@ -36,6 +36,8 @@ type exitedMsg tunnel.Exited
 // listenerResult is one fetch of a host's listening ports.
 type listenerResult struct {
 	listeners []listeners.Listener
+	// isOwnOnly is set when the host listed only the ssh user's own ports.
+	isOwnOnly bool
 	err       error
 	isLoading bool
 }
@@ -251,8 +253,8 @@ func (m *Model) fetchListenersOf(host string) tea.Cmd {
 	m.listenerResults[host] = listenerResult{isLoading: true}
 	run := m.supervisor.Run
 	return func() tea.Msg {
-		found, err := listeners.Fetch(run, host)
-		return listenersMsg{host: host, result: listenerResult{listeners: found, err: err}}
+		listing, err := listeners.Fetch(run, host)
+		return listenersMsg{host: host, result: listenerResult{listeners: listing.Listeners, isOwnOnly: listing.IsOwnOnly, err: err}}
 	}
 }
 

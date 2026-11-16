@@ -22,6 +22,15 @@ type Listener struct {
 	Process string
 }
 
+// Listing is what one fetch learned about a host's listening ports.
+type Listing struct {
+	Listeners []Listener
+	// IsOwnOnly is set when the host listed only the ssh user's own ports.
+	// macOS 27 shows a user without root no TCP sockets in netstat, so
+	// only lsof's own ports are known there.
+	IsOwnOnly bool
+}
+
 // IsOwned reports whether the ssh user owns the listening process.
 func (l Listener) IsOwned() bool {
 	return l.Process != ""
@@ -47,7 +56,7 @@ var processName = regexp.MustCompile(`users:\(\("([^"]*)"`)
 // for the same port (IPv4 and IPv6, several interfaces, lsof and netstat)
 // merge into one, keeping a process name when any row has one. It fails when
 // the output holds no section, or names an unsupported OS.
-func Parse(output string) ([]Listener, error) {
+func Parse(output string) (Listing, error) {
 	byPort := map[int]Listener{}
 	add := func(port int, process string) {
 		listener := byPort[port]
@@ -58,15 +67,20 @@ func Parse(output string) ([]Listener, error) {
 		byPort[port] = listener
 	}
 	section, user, lsofCommand := "", "", ""
+	hasNetstatBSD, netstatBSDLines := false, 0
 	for _, line := range strings.Split(output, "\n") {
 		line = strings.TrimSpace(line)
 		switch line {
 		case sectionSS, sectionNetstatLinux, sectionProc, sectionUser, sectionSockstat, sectionLsof, sectionNetstatBSD, sectionUnsupported:
 			section = line
+			hasNetstatBSD = hasNetstatBSD || line == sectionNetstatBSD
 			continue
 		}
 		if line == "" {
 			continue
+		}
+		if section == sectionNetstatBSD {
+			netstatBSDLines++
 		}
 		fields := strings.Fields(line)
 		switch section {
@@ -137,18 +151,20 @@ func Parse(output string) ([]Listener, error) {
 				add(port, "")
 			}
 		case sectionUnsupported:
-			return nil, fmt.Errorf("%s hosts are not supported", line)
+			return Listing{}, fmt.Errorf("%s hosts are not supported", line)
 		}
 	}
 	if section == "" {
-		return nil, errNoScriptOutput
+		return Listing{}, errNoScriptOutput
 	}
 	listeners := make([]Listener, 0, len(byPort))
 	for _, listener := range byPort {
 		listeners = append(listeners, listener)
 	}
 	slices.SortFunc(listeners, func(a, b Listener) int { return cmp.Compare(a.Port, b.Port) })
-	return listeners, nil
+	// A host reached over ssh always has sshd listening, so a netstat that
+	// printed nothing at all hid the other users' ports.
+	return Listing{Listeners: listeners, IsOwnOnly: hasNetstatBSD && netstatBSDLines == 0}, nil
 }
 
 // portAfter reads the port that follows the last separator in a local

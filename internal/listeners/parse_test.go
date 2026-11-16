@@ -19,14 +19,15 @@ LISTEN 0      128                                     [::1]:4966          [::]:*
 
 func TestParseMergesRowsPerPort(t *testing.T) {
 	want := []Listener{{22, ""}, {53, ""}, {3773, "node-MainThread"}, {4966, "diffle"}}
-	if got, err := Parse(ssOutput); err != nil || !slices.Equal(got, want) {
+	if got, err := Parse(ssOutput); err != nil || !slices.Equal(got.Listeners, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
 
 func TestOwnedDropsSystemServices(t *testing.T) {
 	want := []Listener{{3773, "node-MainThread"}, {4966, "diffle"}}
-	found, _ := Parse(ssOutput)
+	listing, _ := Parse(ssOutput)
+	found := listing.Listeners
 	if got := Owned(found); !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}
@@ -65,7 +66,7 @@ tcp46      0      0  *.22                   *.*                    LISTEN
 
 func TestParseMergesLsofNamesIntoNetstatPorts(t *testing.T) {
 	want := []Listener{{22, ""}, {631, ""}, {3000, "node"}, {5432, "postgres"}, {7000, "ControlCenter"}}
-	if got, err := Parse(macOutput); err != nil || !slices.Equal(got, want) {
+	if got, err := Parse(macOutput); err != nil || !slices.Equal(got.Listeners, want) || got.IsOwnOnly {
 		t.Fatalf("got %v, want %v", got, want)
 	}
 }
@@ -125,7 +126,7 @@ func TestParseReadsEachLinuxAndBSDFormat(t *testing.T) {
 		{"FreeBSD sockstat", sockstatOutput, []Listener{{22, ""}, {3000, "node"}, {5432, "postgres"}}},
 	} {
 		got, err := Parse(test.output)
-		if err != nil || !slices.Equal(got, test.want) {
+		if err != nil || !slices.Equal(got.Listeners, test.want) || got.IsOwnOnly {
 			t.Errorf("%s: got %v, %v, want %v", test.name, got, err, test.want)
 		}
 	}
@@ -142,5 +143,17 @@ func TestParseRejectsUnsupportedHost(t *testing.T) {
 func TestParseRejectsOutputWithoutSections(t *testing.T) {
 	if _, err := Parse(""); err == nil {
 		t.Fatal("empty output parsed without error")
+	}
+}
+
+// macOS 27 shows a user without root no TCP sockets in netstat, so only
+// lsof's own ports are known.
+func TestParseMarksMacListingWithoutNetstatAsOwnOnly(t *testing.T) {
+	output := "lazyfwd:lsof\np48211\ncnode\nf23\nn127.0.0.1:3000\nlazyfwd:netstat-bsd\n"
+
+	got, err := Parse(output)
+
+	if err != nil || !got.IsOwnOnly || !slices.Equal(got.Listeners, []Listener{{3000, "node"}}) {
+		t.Fatalf("got %+v, %v", got, err)
 	}
 }

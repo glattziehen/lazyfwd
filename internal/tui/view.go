@@ -272,7 +272,9 @@ func (m Model) listenerLines() []string {
 	}
 	// Other users' ports include Docker's published ports, which belong to
 	// root's docker-proxy, so the hidden count names Docker.
-	if hidden := len(result.listeners) - len(m.visibleListeners()); hidden > 0 {
+	if result.isOwnOnly && m.isShowingAllListeners {
+		lines = append(lines, styleMuted.Render(host+" shows you only your own ports; other users' need root there"))
+	} else if hidden := len(result.listeners) - len(m.visibleListeners()); hidden > 0 {
 		lines = append(lines, styleMuted.Render(fmt.Sprintf("%d more of other users, such as Docker: t shows all", hidden)))
 	} else if len(lines) == 0 {
 		lines = append(lines, styleMuted.Render("no listening ports"))
