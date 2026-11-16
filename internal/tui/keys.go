@@ -17,7 +17,7 @@ var keyHelpRows = []keyHelpRow{
 	{"r", "any", "refresh the host's listening ports"},
 	{"A", "any", "add a remote forward"},
 	{"?", "any", "show or hide this help"},
-	{"q", "any", "stop all forwards and quit"},
+	{"q, ctrl+c", "any", "quit after asking; stops all forwards"},
 	{"a", "Hosts", "add a host"},
 	{"p", "Hosts", "pin or unpin the host"},
 	{"d", "Hosts", "remove an added host that has no forwards"},
