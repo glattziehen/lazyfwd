@@ -7,10 +7,16 @@ platforms = ["linux-64", "osx-arm64", "osx-64"]
 build = "go build -o lazyfwd ."
 check = "go vet ./... && go test ./..."
 run = "go run ."
+# The pre-commit hook (.lefthook.yml) over every file, as CI runs it.
+lint = "lefthook run pre-commit --all-files"
+lefthook-install = "lefthook install"
 
 [dependencies]
 go = ">=1.27.4,<2"
 git-cliff = ">=2,<3"
+lefthook = ">=2.2.1,<3"
+golangci-lint = ">=2.15.0,<3"
+actionlint = ">=1.7.12,<2"
 
 [activation.env]
 # conda-forge's go expects a conda C compiler for cgo; lazyfwd needs no cgo.
