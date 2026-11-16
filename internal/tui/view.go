@@ -89,7 +89,7 @@ func (m Model) View() string {
 	listenersHeight := max(minListenersHeight, bodyHeight/3)
 	host := m.selectedHost()
 	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, bodyHeight)
-	forwards := m.panel(panelForwards, host, m.forwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, bodyHeight-listenersHeight)
+	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, bodyHeight-listenersHeight)
 	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, listenersHeight)
 	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
 	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), footer)
@@ -184,10 +184,9 @@ func (m Model) hostLines() []string {
 	return lines
 }
 
-// forwardLines aligns the arrows after the widest laptop end; the arrow
-// points from the listening end to the target.
-func (m Model) forwardLines() []string {
-	forwards := m.forwards()
+// forwardLines renders one row per forward and aligns the arrows after the
+// widest laptop end; the arrow points from the listening end to the target.
+func (m Model) forwardLines(forwards []workspace.Forward) []string {
 	laptopWidth := 0
 	for _, forward := range forwards {
 		laptopWidth = max(laptopWidth, len(forward.LaptopAddr().String()))
@@ -205,6 +204,11 @@ func (m Model) forwardLines() []string {
 		remote := styleMuted.Render(forward.Host+":") + forward.RemoteAddr().String()
 		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), link, padding, styleMuted.Render(arrow), remote))
 	}
+	return lines
+}
+
+func (m Model) hostForwardLines() []string {
+	lines := m.forwardLines(m.forwards())
 	if len(lines) == 0 && m.selectedHost() != "" {
 		lines = append(lines, styleMuted.Render("no forwards: press a (local) or A (remote) to add one"))
 	}
@@ -298,7 +302,7 @@ func (m Model) modal(title string, lines []string, height int) string {
 // footer shows the selected forward's ssh command or failure, the last message, and the keys.
 func (m Model) footer() string {
 	var lines []string
-	if forward, ok := m.selectedForward(); ok && m.form == nil && m.focus == panelForwards {
+	if forward, ok := m.focusedForward(); ok && m.form == nil {
 		if reason, failed := m.failures[forward.ID]; failed {
 			lines = append(lines, styleFailed.Render("✗ ssh failed: "+reason))
 		} else {

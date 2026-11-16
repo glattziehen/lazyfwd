@@ -223,10 +223,13 @@ func (m *Model) updateForwardKey(key string) {
 		m.form = newForwardForm(workspace.Local)
 		return
 	}
-	forward, ok := m.selectedForward()
-	if !ok {
-		return
+	if forward, ok := m.selectedForward(); ok {
+		m.actOnForward(key, forward)
 	}
+}
+
+// actOnForward runs a forward's row key: start or stop, edit, delete, or open.
+func (m *Model) actOnForward(key string, forward workspace.Forward) {
 	switch key {
 	case " ", "s":
 		m.toggle(forward)
@@ -237,7 +240,7 @@ func (m *Model) updateForwardKey(key string) {
 		delete(m.failures, forward.ID)
 		m.workspace.DeleteForward(forward.ID)
 		m.save()
-		m.forwardIndex = clamp(m.forwardIndex, len(m.workspace.ForwardsOf(forward.Host)))
+		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
 		if err := browser.Open(forward.LaptopURL()); err != nil {
 			m.message = "open browser: " + err.Error()
@@ -447,6 +450,14 @@ func (m Model) selectedForward() (workspace.Forward, bool) {
 		return workspace.Forward{}, false
 	}
 	return forwards[m.forwardIndex], true
+}
+
+// focusedForward is the forward under the cursor of a focused forward list.
+func (m Model) focusedForward() (workspace.Forward, bool) {
+	if m.focus == panelForwards {
+		return m.selectedForward()
+	}
+	return workspace.Forward{}, false
 }
 
 func (m *Model) selectHost(name string) {
