@@ -1,8 +1,9 @@
-// Package tui is lazyfwd's terminal interface: a hosts panel and a forwards panel.
+// Package tui is lazyfwd's terminal interface: Live, Hosts, Forwards, and Listening panels.
 package tui
 
 import (
 	"fmt"
+	"slices"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -17,10 +18,12 @@ type Store interface {
 	Save(workspace.Workspace) error
 }
 
+// panel is a panel in focus order; its value is its number key.
 type panel int
 
 const (
-	panelHosts panel = iota
+	panelLive panel = iota
+	panelHosts
 	panelForwards
 	panelListeners
 	panelCount
@@ -51,8 +54,12 @@ type Model struct {
 	// listenerResults caches each host's listening ports for the session.
 	listenerResults map[string]listenerResult
 
-	focus                 panel
-	hostIndex             int
+	focus     panel
+	hostIndex int
+	// liveID is the selected live forward. liveIndex is its row, which the
+	// cursor keeps when that forward leaves the list.
+	liveID                workspace.ForwardID
+	liveIndex             int
 	forwardIndex          int
 	listenerIndex         int
 	isShowingAllListeners bool
@@ -71,6 +78,7 @@ func New(store Store, supervisor *tunnel.Supervisor, ws workspace.Workspace, ssh
 		workspace:       ws,
 		failures:        map[workspace.ForwardID]string{},
 		listenerResults: map[string]listenerResult{},
+		focus:           panelHosts,
 	}
 }
 
@@ -84,6 +92,14 @@ func (m Model) waitForExit() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	// Any message can start, stop, or fail a forward, so the live list may
+	// have changed under the cursor.
+	next.selectLive(next.liveCursor(next.liveForwards()))
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -108,7 +124,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	m.message = ""
 	// Methods that change m run before the return reads it; Go leaves the
 	// order within one return statement unspecified.
@@ -121,6 +137,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.focusPanel((m.focus + 1) % panelCount)
 	case "shift+tab", "h", "left":
 		cmd = m.focusPanel((m.focus + panelCount - 1) % panelCount)
+	case "0":
+		cmd = m.focusPanel(panelLive)
 	case "1":
 		cmd = m.focusPanel(panelHosts)
 	case "2":
@@ -149,6 +167,8 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd = m.fetchListeners()
 	default:
 		switch m.focus {
+		case panelLive:
+			cmd = m.updateLiveKey(key)
 		case panelHosts:
 			cmd = m.updateHostKey(key)
 		case panelForwards:
@@ -164,7 +184,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // listeners once per session; r refetches.
 func (m *Model) focusPanel(target panel) tea.Cmd {
 	m.focus = target
-	if target == panelHosts {
+	if target == panelLive || target == panelHosts {
 		return nil
 	}
 	if _, ok := m.listenerResults[m.selectedHost()]; ok {
@@ -218,15 +238,35 @@ func (m *Model) updateHostKey(key string) tea.Cmd {
 	return nil
 }
 
+// updateLiveKey runs the Forwards panel's row keys on the selected live
+// forward; enter shows that forward in the Forwards panel.
+func (m *Model) updateLiveKey(key string) tea.Cmd {
+	forward, ok := m.selectedLive()
+	if !ok {
+		return nil
+	}
+	if key == "enter" {
+		m.selectHost(forward.Host)
+		m.forwardIndex = slices.IndexFunc(m.forwards(), func(f workspace.Forward) bool { return f.ID == forward.ID })
+		m.listenerIndex = 0
+		return m.focusPanel(panelForwards)
+	}
+	m.actOnForward(key, forward)
+	return nil
+}
+
 func (m *Model) updateForwardKey(key string) {
 	if key == "a" && m.selectedHost() != "" {
 		m.form = newForwardForm(workspace.Local)
 		return
 	}
-	forward, ok := m.selectedForward()
-	if !ok {
-		return
+	if forward, ok := m.selectedForward(); ok {
+		m.actOnForward(key, forward)
 	}
+}
+
+// actOnForward runs a forward's row key: start or stop, edit, delete, or open.
+func (m *Model) actOnForward(key string, forward workspace.Forward) {
 	switch key {
 	case " ", "s":
 		m.toggle(forward)
@@ -237,7 +277,7 @@ func (m *Model) updateForwardKey(key string) {
 		delete(m.failures, forward.ID)
 		m.workspace.DeleteForward(forward.ID)
 		m.save()
-		m.forwardIndex = clamp(m.forwardIndex, len(m.workspace.ForwardsOf(forward.Host)))
+		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
 		if err := browser.Open(forward.LaptopURL()); err != nil {
 			m.message = "open browser: " + err.Error()
@@ -302,7 +342,7 @@ func (m Model) selectedListener() (listeners.Listener, bool) {
 	return visible[m.listenerIndex], true
 }
 
-func (m Model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m Model) updateForm(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.form = nil
@@ -410,6 +450,8 @@ func (m Model) halfPage() int {
 
 func (m *Model) move(delta int) {
 	switch m.focus {
+	case panelLive:
+		m.selectLive(m.liveCursor(m.liveForwards()) + delta)
 	case panelHosts:
 		m.hostIndex = clamp(m.hostIndex+delta, len(m.hosts()))
 		m.forwardIndex, m.listenerIndex = 0, 0
@@ -447,6 +489,56 @@ func (m Model) selectedForward() (workspace.Forward, bool) {
 		return workspace.Forward{}, false
 	}
 	return forwards[m.forwardIndex], true
+}
+
+// liveForwards are the running and failed forwards of all hosts, in host-list order.
+func (m Model) liveForwards() []workspace.Forward {
+	var live []workspace.Forward
+	for _, host := range m.hosts() {
+		for _, forward := range m.workspace.ForwardsOf(host.Name) {
+			if m.status(forward) != statusStopped {
+				live = append(live, forward)
+			}
+		}
+	}
+	return live
+}
+
+// liveCursor is the row of the selected live forward, or the row it left.
+func (m Model) liveCursor(live []workspace.Forward) int {
+	if i := slices.IndexFunc(live, func(f workspace.Forward) bool { return f.ID == m.liveID }); i >= 0 {
+		return i
+	}
+	return clamp(m.liveIndex, len(live))
+}
+
+func (m *Model) selectLive(index int) {
+	live := m.liveForwards()
+	m.liveIndex = clamp(index, len(live))
+	m.liveID = 0
+	if m.liveIndex < len(live) {
+		m.liveID = live[m.liveIndex].ID
+	}
+}
+
+func (m Model) selectedLive() (workspace.Forward, bool) {
+	live := m.liveForwards()
+	i := m.liveCursor(live)
+	if i >= len(live) {
+		return workspace.Forward{}, false
+	}
+	return live[i], true
+}
+
+// focusedForward is the forward under the cursor of a focused forward list.
+func (m Model) focusedForward() (workspace.Forward, bool) {
+	switch m.focus {
+	case panelLive:
+		return m.selectedLive()
+	case panelForwards:
+		return m.selectedForward()
+	}
+	return workspace.Forward{}, false
 }
 
 func (m *Model) selectHost(name string) {
