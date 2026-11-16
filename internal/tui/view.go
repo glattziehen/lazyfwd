@@ -9,7 +9,10 @@ import (
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
 
-const hostsPanelWidth = 34
+const (
+	hostsPanelWidth    = 34
+	minListenersHeight = 7
+)
 
 var (
 	colorAccent = lipgloss.Color("6")
@@ -17,12 +20,11 @@ var (
 	colorOK     = lipgloss.Color("2")
 	colorError  = lipgloss.Color("1")
 
-	styleTitle    = lipgloss.NewStyle().Bold(true)
-	styleMuted    = lipgloss.NewStyle().Foreground(colorMuted)
-	styleOK       = lipgloss.NewStyle().Foreground(colorOK)
-	styleError    = lipgloss.NewStyle().Foreground(colorError)
-	styleSelected = lipgloss.NewStyle().Reverse(true)
-	styleCursor   = lipgloss.NewStyle().Bold(true)
+	styleTitle  = lipgloss.NewStyle().Bold(true)
+	styleMuted  = lipgloss.NewStyle().Foreground(colorMuted)
+	styleOK     = lipgloss.NewStyle().Foreground(colorOK)
+	styleError  = lipgloss.NewStyle().Foreground(colorError)
+	styleCursor = lipgloss.NewStyle().Bold(true).Foreground(colorAccent)
 )
 
 func (m Model) View() string {
@@ -34,12 +36,18 @@ func (m Model) View() string {
 	if m.form != nil {
 		return lipgloss.JoinVertical(lipgloss.Left, m.formView(bodyHeight), footer)
 	}
+	rightWidth := m.width - hostsPanelWidth
+	listenersHeight := max(minListenersHeight, bodyHeight/3)
 	hosts := m.panel("[1] Hosts", m.hostLines(), m.hostIndex, panelHosts, hostsPanelWidth, bodyHeight)
-	forwards := m.panel("[2] Forwards: "+m.selectedHost(), m.forwardLines(), m.forwardIndex, panelForwards, m.width-hostsPanelWidth, bodyHeight)
-	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, forwards), footer)
+	forwards := m.panel("[2] Forwards: "+m.selectedHost(), m.forwardLines(), m.forwardIndex, panelForwards, rightWidth, bodyHeight-listenersHeight)
+	listening := m.panel(m.listenersTitle(), m.listenerLines(), m.listenerIndex, panelListeners, rightWidth, listenersHeight)
+	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
+	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), footer)
 }
 
 // panel draws a bordered list that scrolls to keep the cursor row visible.
+// The cursor is a marker column, since reverse video breaks at the first
+// styled cell inside a row.
 func (m Model) panel(title string, lines []string, cursor int, which panel, width, height int) string {
 	border := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(colorMuted)
 	if m.focus == which {
@@ -49,14 +57,14 @@ func (m Model) panel(title string, lines []string, cursor int, which panel, widt
 	start := max(0, cursor-rows+1)
 	body := []string{styleTitle.Render(title)}
 	for i := start; i < len(lines) && i < start+rows; i++ {
-		line := lipgloss.NewStyle().Width(innerWidth).MaxWidth(innerWidth).Render(lines[i])
+		marker := "  "
 		switch {
 		case i == cursor && m.focus == which:
-			line = styleSelected.Render(line)
+			marker = styleCursor.Render("> ")
 		case i == cursor:
-			line = styleCursor.Render(line)
+			marker = styleMuted.Render("> ")
 		}
-		body = append(body, line)
+		body = append(body, lipgloss.NewStyle().MaxWidth(innerWidth).Render(marker+lines[i]))
 	}
 	return border.Width(innerWidth).Height(height - 2).Render(strings.Join(body, "\n"))
 }
@@ -105,6 +113,41 @@ func (m Model) forwardLines() []string {
 	}
 	if len(lines) == 0 && m.selectedHost() != "" {
 		lines = append(lines, styleMuted.Render("no forwards: press a (local) or A (remote) to add one"))
+	}
+	return lines
+}
+
+func (m Model) listenersTitle() string {
+	scope := "yours"
+	if m.isShowingAllListeners {
+		scope = "all"
+	}
+	return fmt.Sprintf("[3] Listening on %s (%s)", m.selectedHost(), scope)
+}
+
+func (m Model) listenerLines() []string {
+	host := m.selectedHost()
+	result, ok := m.listenerResults[host]
+	switch {
+	case host == "":
+		return nil
+	case !ok:
+		return []string{styleMuted.Render("press r to list listening ports")}
+	case result.isLoading:
+		return []string{styleMuted.Render("asking " + host + "...")}
+	case result.err != nil:
+		return []string{styleError.Render(result.err.Error()), styleMuted.Render("add forwards by hand with a")}
+	}
+	var lines []string
+	for _, listener := range m.visibleListeners() {
+		line := fmt.Sprintf("%-6d %s", listener.Port, listener.Process)
+		if forward, ok := m.forwardTo(listener.Port); ok {
+			line += styleOK.Render("  -> " + forward.LaptopAddr().String())
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		lines = append(lines, styleMuted.Render("no listening ports of yours; t shows all"))
 	}
 	return lines
 }
@@ -166,8 +209,10 @@ func (m Model) keyHelp() string {
 	case m.form != nil:
 		return "enter save · esc cancel · tab next field"
 	case m.focus == panelHosts:
-		return "j/k move · enter forwards · a add host · p pin · d remove · A remote fwd · q quit"
+		return "j/k move · enter forwards · a add host · p pin · d remove · tab next panel · q quit"
+	case m.focus == panelListeners:
+		return "j/k move · enter forward port · t yours/all · r refresh · a local fwd · tab next panel · q quit"
 	default:
-		return "j/k move · space start/stop · a local fwd · A remote fwd · e edit · d delete · o open · tab hosts · q quit"
+		return "j/k move · space start/stop · a local fwd · A remote fwd · e edit · d delete · o open · r refresh · q quit"
 	}
 }

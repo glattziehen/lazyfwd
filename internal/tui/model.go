@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/moritzwilksch/lazyfwd/internal/browser"
+	"github.com/moritzwilksch/lazyfwd/internal/listeners"
 	"github.com/moritzwilksch/lazyfwd/internal/tunnel"
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
@@ -21,9 +22,23 @@ type panel int
 const (
 	panelHosts panel = iota
 	panelForwards
+	panelListeners
+	panelCount
 )
 
 type exitedMsg tunnel.Exited
+
+// listenerResult is one fetch of a host's listening ports.
+type listenerResult struct {
+	listeners []listeners.Listener
+	err       error
+	isLoading bool
+}
+
+type listenersMsg struct {
+	host   string
+	result listenerResult
+}
 
 // Model is the bubbletea model. Forward status derives from the supervisor
 // (running) and failures (last ssh error since the forward last started).
@@ -33,23 +48,28 @@ type Model struct {
 	sshConfigHosts []string
 	workspace      workspace.Workspace
 	failures       map[workspace.ForwardID]string
+	// listenerResults caches each host's listening ports for the session.
+	listenerResults map[string]listenerResult
 
-	focus        panel
-	hostIndex    int
-	forwardIndex int
-	form         *form
-	message      string
-	width        int
-	height       int
+	focus                 panel
+	hostIndex             int
+	forwardIndex          int
+	listenerIndex         int
+	isShowingAllListeners bool
+	form                  *form
+	message               string
+	width                 int
+	height                int
 }
 
 func New(store Store, supervisor *tunnel.Supervisor, ws workspace.Workspace, sshConfigHosts []string) Model {
 	return Model{
-		store:          store,
-		supervisor:     supervisor,
-		sshConfigHosts: sshConfigHosts,
-		workspace:      ws,
-		failures:       map[workspace.ForwardID]string{},
+		store:           store,
+		supervisor:      supervisor,
+		sshConfigHosts:  sshConfigHosts,
+		workspace:       ws,
+		failures:        map[workspace.ForwardID]string{},
+		listenerResults: map[string]listenerResult{},
 	}
 }
 
@@ -70,6 +90,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case exitedMsg:
 		m.failures[msg.ID] = msg.Reason
 		return m, m.waitForExit()
+	case listenersMsg:
+		m.listenerResults[msg.host] = msg.result
+		m.listenerIndex = clamp(m.listenerIndex, len(m.visibleListeners()))
+		return m, nil
 	case tea.KeyMsg:
 		if m.form != nil {
 			return m.updateForm(msg)
@@ -81,45 +105,80 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.message = ""
-	switch msg.String() {
+	switch key := msg.String(); key {
 	case "q", "ctrl+c":
 		m.supervisor.StopAll()
 		return m, tea.Quit
-	case "tab", "h", "l", "left", "right":
-		m.focus = 1 - m.focus
-	case "1":
-		m.focus = panelHosts
-	case "2", "enter":
-		m.focus = panelForwards
+	case "tab":
+		return m, m.focusPanel((m.focus + 1) % panelCount)
+	case "shift+tab":
+		return m, m.focusPanel((m.focus + panelCount - 1) % panelCount)
+	case "1", "h", "left":
+		return m, m.focusPanel(panelHosts)
+	case "2", "l", "right":
+		return m, m.focusPanel(panelForwards)
+	case "3":
+		return m, m.focusPanel(panelListeners)
 	case "j", "down":
 		m.move(1)
 	case "k", "up":
 		m.move(-1)
-	case "a":
-		if m.focus == panelHosts {
-			m.form = newHostForm()
-		} else if m.selectedHost() != "" {
-			m.form = newForwardForm(workspace.Local)
-		}
 	case "A":
 		if m.selectedHost() != "" {
 			m.form = newForwardForm(workspace.Remote)
 		}
-	}
-	if m.focus == panelHosts {
-		m.updateHostKey(msg.String())
-	} else {
-		m.updateForwardKey(msg.String())
+	case "r":
+		return m, m.fetchListeners()
+	default:
+		switch m.focus {
+		case panelHosts:
+			return m, m.updateHostKey(key)
+		case panelForwards:
+			m.updateForwardKey(key)
+		case panelListeners:
+			m.updateListenerKey(key)
+		}
 	}
 	return m, nil
 }
 
-func (m *Model) updateHostKey(key string) {
+// focusPanel moves focus. Entering a host's forwards or listeners fetches its
+// listeners once per session; r refetches.
+func (m *Model) focusPanel(target panel) tea.Cmd {
+	m.focus = target
+	if target == panelHosts {
+		return nil
+	}
+	if _, ok := m.listenerResults[m.selectedHost()]; ok {
+		return nil
+	}
+	return m.fetchListeners()
+}
+
+func (m *Model) fetchListeners() tea.Cmd {
+	host := m.selectedHost()
+	if host == "" {
+		return nil
+	}
+	m.listenerResults[host] = listenerResult{isLoading: true}
+	return func() tea.Msg {
+		found, err := listeners.Fetch(host)
+		return listenersMsg{host: host, result: listenerResult{listeners: found, err: err}}
+	}
+}
+
+func (m *Model) updateHostKey(key string) tea.Cmd {
+	if key == "a" {
+		m.form = newHostForm()
+		return nil
+	}
 	host, ok := m.selectedHostEntry()
 	if !ok {
-		return
+		return nil
 	}
 	switch key {
+	case "enter":
+		return m.focusPanel(panelForwards)
 	case "p":
 		m.workspace.TogglePin(host.Name)
 		m.save()
@@ -127,7 +186,7 @@ func (m *Model) updateHostKey(key string) {
 	case "d":
 		if !host.IsManual && len(m.workspace.ForwardsOf(host.Name)) == 0 {
 			m.message = host.Name + " comes from ~/.ssh/config; edit that file to remove it"
-			return
+			return nil
 		}
 		for _, forward := range m.workspace.ForwardsOf(host.Name) {
 			m.supervisor.Stop(forward.ID)
@@ -136,9 +195,14 @@ func (m *Model) updateHostKey(key string) {
 		m.save()
 		m.clampHostIndex()
 	}
+	return nil
 }
 
 func (m *Model) updateForwardKey(key string) {
+	if key == "a" && m.selectedHost() != "" {
+		m.form = newForwardForm(workspace.Local)
+		return
+	}
 	forward, ok := m.selectedForward()
 	if !ok {
 		return
@@ -164,6 +228,63 @@ func (m *Model) updateForwardKey(key string) {
 			m.message = "open browser: " + err.Error()
 		}
 	}
+}
+
+func (m *Model) updateListenerKey(key string) {
+	switch key {
+	case "a":
+		if m.selectedHost() != "" {
+			m.form = newForwardForm(workspace.Local)
+		}
+	case "t":
+		m.isShowingAllListeners = !m.isShowingAllListeners
+		m.listenerIndex = 0
+	case "enter", " ", "f":
+		listener, ok := m.selectedListener()
+		if !ok {
+			return
+		}
+		if forward, ok := m.forwardTo(listener.Port); ok {
+			m.message = fmt.Sprintf("port %d is already forwarded to %s", listener.Port, forward.LaptopAddr())
+			return
+		}
+		target := workspace.Addr{Host: workspace.DefaultTargetHost, Port: listener.Port}
+		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.Addr{target}, 0, tunnel.IsLaptopPortFree)
+		if err != nil {
+			m.message = err.Error()
+			return
+		}
+		m.save()
+		m.start(added[0])
+	}
+}
+
+// forwardTo finds the selected host's local forward to localhost:port.
+func (m Model) forwardTo(port int) (workspace.Forward, bool) {
+	for _, forward := range m.forwards() {
+		if forward.Direction == workspace.Local && forward.Target == (workspace.Addr{Host: workspace.DefaultTargetHost, Port: port}) {
+			return forward, true
+		}
+	}
+	return workspace.Forward{}, false
+}
+
+// visibleListeners are the selected host's fetched listeners, by default only
+// those owned by the ssh user.
+func (m Model) visibleListeners() []listeners.Listener {
+	found := m.listenerResults[m.selectedHost()].listeners
+	if m.isShowingAllListeners {
+		return found
+	}
+	return listeners.Owned(found)
+}
+
+func (m Model) selectedListener() (listeners.Listener, bool) {
+	visible := m.visibleListeners()
+	if m.listenerIndex >= len(visible) {
+		return listeners.Listener{}, false
+	}
+	return visible[m.listenerIndex], true
 }
 
 func (m Model) updateForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -255,12 +376,15 @@ func (m *Model) save() {
 }
 
 func (m *Model) move(delta int) {
-	if m.focus == panelHosts {
+	switch m.focus {
+	case panelHosts:
 		m.hostIndex = clamp(m.hostIndex+delta, len(m.hosts()))
-		m.forwardIndex = 0
-		return
+		m.forwardIndex, m.listenerIndex = 0, 0
+	case panelForwards:
+		m.forwardIndex = clamp(m.forwardIndex+delta, len(m.forwards()))
+	case panelListeners:
+		m.listenerIndex = clamp(m.listenerIndex+delta, len(m.visibleListeners()))
 	}
-	m.forwardIndex = clamp(m.forwardIndex+delta, len(m.forwards()))
 }
 
 func (m Model) hosts() []workspace.Host {
@@ -303,7 +427,7 @@ func (m *Model) selectHost(name string) {
 
 func (m *Model) clampHostIndex() {
 	m.hostIndex = clamp(m.hostIndex, len(m.hosts()))
-	m.forwardIndex = 0
+	m.forwardIndex, m.listenerIndex = 0, 0
 }
 
 // clamp keeps i within [0, n-1], or 0 when n is 0.
