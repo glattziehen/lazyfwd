@@ -183,9 +183,12 @@ func (m Model) hostLines() []string {
 		for _, forward := range m.workspace.ForwardsOf(host.Name) {
 			counts[m.status(forward)]++
 		}
+		// "nuc ● 2  ✗ 1": two spaces keep the counts apart as groups.
+		gap := " "
 		for _, status := range []forwardStatus{statusRunning, statusFailed} {
 			if counts[status] > 0 {
-				line += " " + status.style().Render(fmt.Sprintf("%s%d", status.symbol(), counts[status]))
+				line += gap + status.style().Render(fmt.Sprintf("%s %d", status.symbol(), counts[status]))
+				gap = "  "
 			}
 		}
 		lines = append(lines, line)
