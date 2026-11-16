@@ -4,3 +4,6 @@ pixi.lock merge=binary linguist-language=YAML linguist-generated=true -diff
 # Golden files are compared byte for byte, also on Windows, where git would
 # otherwise check them out with CRLF line endings.
 **/testdata/** text eol=lf
+
+# sh in WSL reads the end-to-end test's scripts, which CRLF would break.
+*.sh text eol=lf

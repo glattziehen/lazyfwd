@@ -2,7 +2,7 @@
 
 Manage SSH port forwards from a keyboard-first terminal UI, in the spirit of lazygit. Pick a host, see its listening ports, and forward them without remembering SSH flags. You can also open a forwarded web port in your browser.
 
-lazyfwd uses your system `ssh`, so your SSH config, agent, and ProxyJump work as usual. It runs on Linux and macOS, including WSL, but not Windows itself.
+lazyfwd uses your system `ssh`, so your SSH config, agent, and ProxyJump work as usual. It runs on Linux, macOS, WSL, and Windows, where some things work differently: see [Windows](#windows).
 
 - Pick hosts from your SSH config and pin the ones you use most.
 - See your processes' listening ports and process names when available, then forward a port with one key.
@@ -42,7 +42,7 @@ Use `tab` to switch panels. In Listening, select a port and press `space` to for
 
 Forwards stop when you quit lazyfwd and return stopped the next time you run it. If SSH needs a password, host key confirmation, or another login step, lazyfwd hands the terminal to SSH and returns after it connects.
 
-Hosts, pins, and forwards are saved in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS).
+Hosts, pins, and forwards are saved in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS, `%AppData%` on Windows).
 
 ## Command line
 
@@ -55,3 +55,15 @@ lazyfwd forward list --json
 ```
 
 Run `lazyfwd --help` for the commands, their JSON output, and exit codes.
+
+## Windows
+
+lazyfwd uses the ssh that Windows ships, which cannot share one connection per host. So each forward runs its own ssh, and lazyfwd refuses three kinds of forwards, with the reason:
+
+- Forwards to hosts that ask for a password, a key passphrase, or 2FA on every connect. Use a key that ssh can use without asking, such as one in `ssh-agent`.
+- Forwards to hosts whose SSH config has `LocalForward`, `RemoteForward`, or `DynamicForward` lines.
+- Unix sockets as a forward's local end. Sockets on the remote host work.
+
+When a host's key is unknown, lazyfwd hands the terminal to ssh so you can accept the key, as on Linux and macOS.
+
+CI tests lazyfwd on Windows Server 2025 against a Linux SSH server. The tests cover forwards in both directions, sockets on the remote host, the command line and `lazyfwd serve`, and that no ssh is left after lazyfwd quits or crashes. The terminal UI in a real console, opening a browser, and the host key login are not tested on Windows.

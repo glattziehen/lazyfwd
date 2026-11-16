@@ -33,6 +33,14 @@ How it works:
 
   lazyfwd uses your system ssh, so your ssh config, agent, and ProxyJump apply.
 
+Windows:
+  The ssh that Windows ships cannot share one connection per host, so each
+  forward runs its own ssh, and lazyfwd refuses three things there, each with
+  exit code 1 and the reason: a host that asks for a password, a key
+  passphrase, or 2FA on every connect (use a key in ssh-agent); a host whose ssh
+  config has LocalForward, RemoteForward, or DynamicForward lines; and a unix
+  socket as a forward's local end. "lazyfwd host login" only accepts a host key.
+
 Forwards:
   Each forward has a numeric ID, shown by "lazyfwd forward list", that stays the
   same until the forward is deleted. Commands take forwards by ID.
@@ -52,13 +60,15 @@ Exit codes:
   1  the operation failed; stderr says why, in ssh's words where ssh failed
   2  usage error: unknown command or flag, or a bad argument
   3  no owner is running: start "lazyfwd" or "lazyfwd serve" first
-  4  a host needs an interactive login (password, passphrase, host key, or 2FA):
-     ask a person to run "lazyfwd host login HOST" in a terminal, then retry
+  4  a host needs an interactive login (password, passphrase, host key, or 2FA;
+     on Windows only a host key): ask a person to run "lazyfwd host login HOST"
+     in a terminal, then retry
   5  a forward was still starting when the command stopped waiting; it keeps
      starting, and "lazyfwd forward list" shows how it ends
 
 Hosts, pins, and forwards are saved in workspace.json in your config directory
-($XDG_CONFIG_HOME/lazyfwd on Linux, ~/Library/Application Support/lazyfwd on macOS).`
+($XDG_CONFIG_HOME/lazyfwd on Linux, ~/Library/Application Support/lazyfwd on macOS,
+%AppData%\lazyfwd on Windows).`
 
 func newRootCommand(version string, e env) *cobra.Command {
 	root := &cobra.Command{
@@ -163,10 +173,10 @@ func newServeCommand(e env) *cobra.Command {
 		Long: `Own the workspace and its ssh connections without the terminal UI, so that
 commands can start and stop forwards.
 
-serve runs in the foreground until SIGINT (ctrl+c) or SIGTERM, and logs one line
-per event to stderr: each change, start, failure, and stop. When it ends, it
-stops every forward, like quitting the terminal UI. Forwards start stopped:
-start them with "lazyfwd forward start".
+serve runs in the foreground until SIGINT (ctrl+c, or ctrl+break on Windows) or
+SIGTERM, and logs one line per event to stderr: each change, start, failure,
+and stop. When it ends, it stops every forward, like quitting the terminal UI.
+Forwards start stopped: start them with "lazyfwd forward start".
 
 serve fails while another owner (serve or the terminal UI) runs on the same
 workspace. A host that needs a password or another login step cannot log in

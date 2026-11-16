@@ -25,7 +25,76 @@ jobs:
           go-version-file: go.mod
       - run: go build ./...
       - run: go vet ./...
+      # The end-to-end test (e2e/) runs lazyfwd against an sshd on 127.0.0.1:2222
+      # with its own host key, reached through the ssh config aliases below.
+      # On Windows that sshd runs in WSL 1, which shares Windows' network, so
+      # the remote end is Linux, as for most Windows users.
+      - name: Start the end-to-end test's sshd
+        if: runner.os != 'Windows'
+        run: |
+          ssh-keygen -q -t ed25519 -N '' -f "$RUNNER_TEMP/e2e_key"
+          sh e2e/sshd.sh "$RUNNER_TEMP/sshd" 2222 "$RUNNER_TEMP/e2e_key.pub"
+          mkdir -p ~/.ssh
+          cat >> ~/.ssh/config <<CONFIG
+          Host lazyfwd-e2e-denied
+            User nobody-lazyfwd
+          Host lazyfwd-e2e-forwarding
+            LocalForward 18090 127.0.0.1:9
+          Host lazyfwd-e2e lazyfwd-e2e-forwarding lazyfwd-e2e-denied
+            HostName 127.0.0.1
+            Port 2222
+            IdentityFile $RUNNER_TEMP/e2e_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          CONFIG
+      - name: Write the end-to-end test's key and ssh config
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $PSNativeCommandArgumentPassing = 'Standard'
+          $key = Join-Path $env:RUNNER_TEMP 'e2e_key'
+          ssh-keygen -q -t ed25519 -N '' -f $key
+          icacls $key /inheritance:r /grant:r "${env:USERNAME}:F" | Out-Null
+          New-Item -ItemType Directory -Force ~/.ssh | Out-Null
+          # ControlMaster auto proves that lazyfwd turns off what Windows' ssh cannot do.
+          @"
+          Host lazyfwd-e2e-denied
+            User nobody-lazyfwd
+          Host lazyfwd-e2e-forwarding
+            LocalForward 18090 127.0.0.1:9
+          Host lazyfwd-e2e
+            ControlMaster auto
+            ControlPath ~/.ssh/cm-%C
+          Host lazyfwd-e2e lazyfwd-e2e-forwarding lazyfwd-e2e-denied
+            HostName 127.0.0.1
+            Port 2222
+            User root
+            IdentityFile $key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          "@ | Add-Content -Encoding ascii ~/.ssh/config
+      - uses: Vampire/setup-wsl@4c48163d9f981914dd8caa0fc335fe19cca5bff4 # v7.2.0
+        if: runner.os == 'Windows'
+        with:
+          distribution: Ubuntu-24.04
+          wsl-version: 1
+          additional-packages: openssh-server curl
+          # A pull request's run must not write what later runs read.
+          use-cache: false
+      - name: Start the end-to-end test's sshd in WSL
+        if: runner.os == 'Windows'
+        shell: wsl-bash {0}
+        run: |
+          mkdir -p /run/sshd
+          sh "$(wslpath -u '${{ github.workspace }}')/e2e/sshd.sh" /tmp/lazyfwd-e2e 2222 "$(wslpath -u '${{ runner.temp }}')/e2e_key.pub"
       - run: go test ./...
+        env:
+          LAZYFWD_E2E_HOST: lazyfwd-e2e
+          # WSL 1 lists no listening sockets, so on Windows the port list only
+          # has to succeed.
+          LAZYFWD_E2E_SSHD_PORT: ${{ runner.os != 'Windows' && '2222' || '' }}
+          LAZYFWD_E2E_CONFIG_FORWARD_HOST: lazyfwd-e2e-forwarding
+          LAZYFWD_E2E_DENIED_HOST: lazyfwd-e2e-denied
 
   # The pre-commit hook over every file: a formatter rewrite or a lint finding fails it.
   lint:
