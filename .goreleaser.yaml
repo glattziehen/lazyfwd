@@ -1,0 +1,29 @@
+version: 2
+
+project_name: lazyfwd
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath]
+    # lazyfwd reads its version from the build info the go command stamps,
+    # so no -X flags.
+    ldflags: [-s -w]
+
+archives:
+  - formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files: [LICENSE, README.md]
+
+checksum:
+  name_template: checksums.txt
+
+# The Publish workflow passes the tag's CHANGELOG.md section as the release notes.
+changelog:
+  disable: true
+
+release:
+  # A rerun replaces the assets an earlier run uploaded.
+  replace_existing_artifacts: true
