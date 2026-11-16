@@ -100,7 +100,8 @@ var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening"}
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
 // title reads "[n]─Name · detail", and the bottom edge shows the cursor
 // position among count items. The cursor is a marker column, since reverse
-// video breaks at the first styled cell inside a row.
+// video breaks at the first styled cell inside a row; lines beyond count, such
+// as an empty-list hint, get no marker.
 func (m Model) panel(which panel, detail string, lines []string, count, cursor, width, height int) string {
 	isFocused := m.focus == which
 	number, name, chrome := styleMuted, lipgloss.NewStyle(), styleMuted
@@ -120,11 +121,8 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	var body []string
 	for i := start; i < len(lines) && i < start+rows; i++ {
 		marker := "  "
-		switch {
-		case i == cursor && isFocused:
-			marker = styleFocus.Render("▸ ")
-		case i == cursor:
-			marker = styleMuted.Render("▸ ")
+		if i == cursor && count > 0 {
+			marker = chrome.Render("▸ ")
 		}
 		body = append(body, marker+lines[i])
 	}
@@ -180,19 +178,26 @@ func (m Model) hostLines() []string {
 	return lines
 }
 
+// forwardLines aligns the arrows after the widest laptop end; the arrow
+// points from the listening end to the target.
 func (m Model) forwardLines() []string {
+	forwards := m.forwards()
+	laptopWidth := 0
+	for _, forward := range forwards {
+		laptopWidth = max(laptopWidth, len(forward.LaptopAddr().String()))
+	}
 	var lines []string
-	for _, forward := range m.forwards() {
+	for _, forward := range forwards {
 		status := m.status(forward)
 		laptop := forward.LaptopAddr().String()
 		link := hyperlink(forward.LaptopURL(), styleLink.Render(laptop))
-		padding := strings.Repeat(" ", max(1, 22-len(laptop)))
-		flag, arrow := "L", "→"
+		padding := strings.Repeat(" ", laptopWidth-len(laptop))
+		arrow := "→"
 		if forward.Direction == workspace.Remote {
-			flag, arrow = "R", "←"
+			arrow = "←"
 		}
 		remote := styleMuted.Render(forward.Host+":") + forward.RemoteAddr().String()
-		lines = append(lines, fmt.Sprintf("%s %s %s%s%s %s", status.style().Render(status.symbol()), styleMuted.Render(flag), link, padding, styleMuted.Render(arrow), remote))
+		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), link, padding, styleMuted.Render(arrow), remote))
 	}
 	if len(lines) == 0 && m.selectedHost() != "" {
 		lines = append(lines, styleMuted.Render("no forwards: press a (local) or A (remote) to add one"))
@@ -269,7 +274,7 @@ func (m Model) helpView(height int) string {
 		if row.panel != panel {
 			panel, label = row.panel, row.panel
 		}
-		lines = append(lines, fmt.Sprintf(" %s  %s  %s ", styleBold.Render(fmt.Sprintf("%-22s", row.keys)), styleMuted.Render(fmt.Sprintf("%-9s", label)), row.action))
+		lines = append(lines, fmt.Sprintf(" %s  %s  %s ", styleMuted.Render(fmt.Sprintf("%-9s", label)), styleBold.Render(fmt.Sprintf("%-22s", row.keys)), row.action))
 	}
 	return m.modal(styleFocus.Bold(true).Render("Keys"), lines, height)
 }

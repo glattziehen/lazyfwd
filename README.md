@@ -22,9 +22,11 @@ pixi run build   # writes ./lazyfwd
 
 Run `lazyfwd`. The screen has three panels:
 
-1. **Hosts**: your `~/.ssh/config` hosts plus hosts you add. Pinned hosts (`*`) sort first.
-2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). The laptop end of each forward is a clickable link in terminals that support OSC 8 hyperlinks.
-3. **Listening** ports on the selected host, with the owning process. lazyfwd asks the host once with `ssh <host> ss -ltnp` when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled.
+1. **Hosts**: your `~/.ssh/config` hosts plus hosts you add. Pinned hosts (`*`) sort first. `●2 ✗1` counts a host's running and failed forwards.
+2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads laptop end, arrow, remote end; `→` is a local forward and `←` a remote one. The laptop end is a clickable link in terminals that support OSC 8 hyperlinks.
+3. **Listening** ports on the selected host, with the owning process (`-` when it is not yours). A forwarded port shows the forward's status and laptop end, e.g. `● → localhost:4966`. lazyfwd asks the host once with `ssh <host> ss -ltnp` when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled.
+
+Colours come from your terminal's 16-colour palette, so your theme applies: green is running, red is failed, grey is stopped or a hint, cyan marks the focused panel, blue a clickable laptop end, and yellow a pin.
 
 Add a local forward with `a`. The target can be one port, a range, or a list: `4966-4968`, `8080`, `db:5432`. Leave the laptop port empty and lazyfwd picks it: the target port if it is free, otherwise the nearest free port. For example, `4966-4968` with 4966 taken on the laptop gives 4965, 4967, 4968. Set the laptop port to choose it yourself.
 
