@@ -375,8 +375,8 @@ func (m *Model) updateListenerKey(key string) {
 			m.toggle(forward)
 			return
 		}
-		target := workspace.Addr{Host: workspace.DefaultTargetHost, Port: listener.Port}
-		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.Addr{target}, 0, tunnel.IsLocalPortFree)
+		target := workspace.End{Host: workspace.DefaultTargetHost, Port: listener.Port}
+		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, 0, tunnel.IsLocalPortFree)
 		if err != nil {
 			m.message = err.Error()
 			return
@@ -389,7 +389,7 @@ func (m *Model) updateListenerKey(key string) {
 // forwardTo finds the selected host's local forward to localhost:port.
 func (m Model) forwardTo(port int) (workspace.Forward, bool) {
 	for _, forward := range m.forwards() {
-		if forward.Direction == workspace.Local && forward.Target == (workspace.Addr{Host: workspace.DefaultTargetHost, Port: port}) {
+		if forward.Direction == workspace.Local && forward.Target == (workspace.End{Host: workspace.DefaultTargetHost, Port: port}) {
 			return forward, true
 		}
 	}

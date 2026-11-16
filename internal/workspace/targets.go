@@ -15,8 +15,8 @@ const (
 
 // ParseTargets parses a comma-separated list of targets. Each item is
 // [host:]port or [host:]first-last, e.g. "4966-4968", "db:5432,6379".
-func ParseTargets(text string) ([]Addr, error) {
-	var targets []Addr
+func ParseTargets(text string) ([]End, error) {
+	var targets []End
 	for _, item := range strings.Split(text, ",") {
 		item = strings.TrimSpace(item)
 		if item == "" {
@@ -34,7 +34,7 @@ func ParseTargets(text string) ([]Addr, error) {
 			return nil, fmt.Errorf("target %q: %w", item, err)
 		}
 		for port := first; port <= last; port++ {
-			targets = append(targets, Addr{Host: host, Port: port})
+			targets = append(targets, End{Host: host, Port: port})
 		}
 		if len(targets) > MaxTargets {
 			return nil, fmt.Errorf("%q expands to more than %d targets", text, MaxTargets)

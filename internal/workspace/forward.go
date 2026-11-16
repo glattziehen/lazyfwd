@@ -19,14 +19,14 @@ const (
 // ForwardID identifies a forward within a workspace.
 type ForwardID int
 
-// Addr is a host and TCP port.
-type Addr struct {
+// End is one end of a forward: a host and TCP port.
+type End struct {
 	Host string `json:"host"`
 	Port int    `json:"port"`
 }
 
-func (a Addr) String() string {
-	return net.JoinHostPort(a.Host, strconv.Itoa(a.Port))
+func (e End) String() string {
+	return net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
 }
 
 // Forward is one ssh port forward through one host.
@@ -37,23 +37,23 @@ type Forward struct {
 	// BindPort is the port that listens: on the local machine for Local, on the remote host for Remote.
 	BindPort int `json:"bind_port"`
 	// Target is resolved on the remote host for Local, on the local machine for Remote.
-	Target Addr `json:"target"`
+	Target End `json:"target"`
 }
 
 // LocalEnd is the forward's end on the local machine.
-func (f Forward) LocalEnd() Addr {
+func (f Forward) LocalEnd() End {
 	if f.Direction == Local {
-		return Addr{Host: "localhost", Port: f.BindPort}
+		return End{Host: "localhost", Port: f.BindPort}
 	}
 	return f.Target
 }
 
 // RemoteEnd is the forward's end on the remote host.
-func (f Forward) RemoteEnd() Addr {
+func (f Forward) RemoteEnd() End {
 	if f.Direction == Local {
 		return f.Target
 	}
-	return Addr{Host: "localhost", Port: f.BindPort}
+	return End{Host: "localhost", Port: f.BindPort}
 }
 
 // LocalURL is the browser URL of the local end, with https for a

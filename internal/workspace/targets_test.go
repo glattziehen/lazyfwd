@@ -6,7 +6,7 @@ import (
 )
 
 func TestParseTargets(t *testing.T) {
-	cases := map[string][]Addr{
+	cases := map[string][]End{
 		"4966-4968":     {{"localhost", 4966}, {"localhost", 4967}, {"localhost", 4968}},
 		"db:5432, 6379": {{"db", 5432}, {"localhost", 6379}},
 		"[::1]:80":      {{"::1", 80}},

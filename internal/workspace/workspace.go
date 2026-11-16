@@ -112,7 +112,7 @@ func (w Workspace) ForwardsOf(host string) []Forward {
 // one automatically: for Local, the target port if free on the local machine, else
 // the nearest free port; for Remote, the target port. isFree reports whether
 // a local port is free right now.
-func (w *Workspace) AddForwards(host string, direction Direction, targets []Addr, bindPort int, isFree func(int) bool) ([]Forward, error) {
+func (w *Workspace) AddForwards(host string, direction Direction, targets []End, bindPort int, isFree func(int) bool) ([]Forward, error) {
 	if bindPort != 0 && len(targets) > 1 {
 		return nil, fmt.Errorf("set a bind port only for a single target, got %d targets", len(targets))
 	}
@@ -131,13 +131,13 @@ func (w *Workspace) AddForwards(host string, direction Direction, targets []Addr
 
 // UpdateForward changes a forward's target and bind port, with the same
 // defaults as AddForwards.
-func (w *Workspace) UpdateForward(id ForwardID, target Addr, bindPort int, isFree func(int) bool) (Forward, error) {
+func (w *Workspace) UpdateForward(id ForwardID, target End, bindPort int, isFree func(int) bool) (Forward, error) {
 	i := slices.IndexFunc(w.Forwards, func(f Forward) bool { return f.ID == id })
 	if i < 0 {
 		return Forward{}, ErrForwardNotFound
 	}
 	forward := w.Forwards[i]
-	bindPorts, err := w.bindPorts(forward.Direction, []Addr{target}, bindPort, isFree, id)
+	bindPorts, err := w.bindPorts(forward.Direction, []End{target}, bindPort, isFree, id)
 	if err != nil {
 		return Forward{}, err
 	}
@@ -153,7 +153,7 @@ func (w *Workspace) DeleteForward(id ForwardID) {
 
 // bindPorts resolves the bind port of each target. Local ports held by other
 // forwards, running or not, count as taken, so starting them later cannot collide.
-func (w Workspace) bindPorts(direction Direction, targets []Addr, bindPort int, isFree func(int) bool, editedID ForwardID) ([]int, error) {
+func (w Workspace) bindPorts(direction Direction, targets []End, bindPort int, isFree func(int) bool, editedID ForwardID) ([]int, error) {
 	if bindPort != 0 {
 		return []int{bindPort}, nil
 	}

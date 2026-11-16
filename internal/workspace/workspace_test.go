@@ -11,10 +11,10 @@ func allFree(int) bool { return true }
 
 func TestAddForwardsAvoidsPortsHeldByOtherForwards(t *testing.T) {
 	var ws Workspace
-	if _, err := ws.AddForwards("box-a", Local, []Addr{{"localhost", 4966}}, 0, allFree); err != nil {
+	if _, err := ws.AddForwards("box-a", Local, []End{{"localhost", 4966}}, 0, allFree); err != nil {
 		t.Fatal(err)
 	}
-	added, err := ws.AddForwards("box-b", Local, []Addr{{"localhost", 4966}, {"localhost", 4967}}, 0, allFree)
+	added, err := ws.AddForwards("box-b", Local, []End{{"localhost", 4966}, {"localhost", 4967}}, 0, allFree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,7 +25,7 @@ func TestAddForwardsAvoidsPortsHeldByOtherForwards(t *testing.T) {
 
 func TestAddForwardsUsesManualBindPortEvenIfTaken(t *testing.T) {
 	var ws Workspace
-	added, err := ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 9000, func(int) bool { return false })
+	added, err := ws.AddForwards("box", Local, []End{{"localhost", 4966}}, 9000, func(int) bool { return false })
 	if err != nil || added[0].BindPort != 9000 {
 		t.Fatalf("got %v, %v", added, err)
 	}
@@ -33,7 +33,7 @@ func TestAddForwardsUsesManualBindPortEvenIfTaken(t *testing.T) {
 
 func TestAddForwardsBindsRemoteForwardOnTargetPort(t *testing.T) {
 	var ws Workspace
-	added, err := ws.AddForwards("box", Remote, []Addr{{"localhost", 3000}}, 0, func(int) bool { return false })
+	added, err := ws.AddForwards("box", Remote, []End{{"localhost", 3000}}, 0, func(int) bool { return false })
 	if err != nil || added[0].BindPort != 3000 {
 		t.Fatalf("got %v, %v", added, err)
 	}
@@ -44,8 +44,8 @@ func TestAddForwardsBindsRemoteForwardOnTargetPort(t *testing.T) {
 
 func TestUpdateForwardKeepsOwnPort(t *testing.T) {
 	var ws Workspace
-	added, _ := ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 0, allFree)
-	updated, err := ws.UpdateForward(added[0].ID, Addr{"localhost", 4966}, 0, allFree)
+	added, _ := ws.AddForwards("box", Local, []End{{"localhost", 4966}}, 0, allFree)
+	updated, err := ws.UpdateForward(added[0].ID, End{"localhost", 4966}, 0, allFree)
 	if err != nil || updated.BindPort != 4966 {
 		t.Fatalf("got %v, %v", updated, err)
 	}
@@ -67,7 +67,7 @@ func TestHostsListsPinnedFirstThenByName(t *testing.T) {
 func TestRemoveHostKeepsItsForwards(t *testing.T) {
 	var ws Workspace
 	_ = ws.AddHost("box")
-	_, _ = ws.AddForwards("box", Local, []Addr{{"localhost", 4966}}, 0, allFree)
+	_, _ = ws.AddForwards("box", Local, []End{{"localhost", 4966}}, 0, allFree)
 	ws.RemoveHost("box")
 	if hosts := ws.Hosts(nil); len(hosts) != 1 || hosts[0].IsManual || len(ws.ForwardsOf("box")) != 1 {
 		t.Fatalf("hosts = %v, forwards = %v", hosts, ws.Forwards)
@@ -78,7 +78,7 @@ func TestFileStoreRoundTrip(t *testing.T) {
 	store := FileStore{Path: filepath.Join(t.TempDir(), "lazyfwd", "workspace.json")}
 	var ws Workspace
 	_ = ws.AddHost("box")
-	_, _ = ws.AddForwards("box", Remote, []Addr{{"localhost", 3000}}, 0, allFree)
+	_, _ = ws.AddForwards("box", Remote, []End{{"localhost", 3000}}, 0, allFree)
 	if err := store.Save(ws); err != nil {
 		t.Fatal(err)
 	}

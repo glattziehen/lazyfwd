@@ -9,7 +9,7 @@ import (
 
 func TestEverySSHCallEndsOptionsBeforeTheHost(t *testing.T) {
 	host := "-oProxyCommand=evil"
-	forward := workspace.Forward{Host: host, Direction: workspace.Local, BindPort: 9000, Target: workspace.Addr{Host: "localhost", Port: 8000}}
+	forward := workspace.Forward{Host: host, Direction: workspace.Local, BindPort: 9000, Target: workspace.End{Host: "localhost", Port: 8000}}
 	calls := map[string][]string{
 		"batch master": batchMasterArgs("/s", "/s.log", host),
 		"login":        loginArgs("/s", "/s.log", host),
@@ -39,7 +39,7 @@ func TestConnectionsSkipForwardsFromSSHConfig(t *testing.T) {
 			t.Errorf("%s would open the config's forwards: %v", name, args)
 		}
 	}
-	forward := workspace.Forward{Host: "box", Direction: workspace.Local, BindPort: 9000, Target: workspace.Addr{Host: "localhost", Port: 8000}}
+	forward := workspace.Forward{Host: "box", Direction: workspace.Local, BindPort: 9000, Target: workspace.End{Host: "localhost", Port: 8000}}
 	if args := forwardArgs("/s", forward); !slices.Equal(args[:2], []string{"-F", "none"}) {
 		t.Errorf("-O forward would send the config's forwards: %v", args)
 	}
