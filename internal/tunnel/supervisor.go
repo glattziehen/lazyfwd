@@ -153,6 +153,10 @@ func (s *Supervisor) Run(ctx context.Context, host, command string) (string, err
 	}
 	c := s.connection(host)
 	s.mu.Unlock()
+	// End the connect and the command when StopAll begins, too.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer context.AfterFunc(s.ctx, cancel)()
 	connected := make(chan error, 1)
 	queuedAt := time.Now()
 	c.enqueue(func() { connected <- c.ensureMaster(ctx, queuedAt) })

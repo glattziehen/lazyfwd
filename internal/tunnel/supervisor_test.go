@@ -1,6 +1,7 @@
 package tunnel
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -114,5 +115,20 @@ func TestQueuedForwardsShareOneFailedConnect(t *testing.T) {
 	content, _ := os.ReadFile(calls)
 	if connects := strings.Count(string(content), " -f -N "); connects != 1 {
 		t.Errorf("%d connect attempts, want 1:\n%s", connects, content)
+	}
+}
+
+// Quitting while the Listening fetch connects must not wait for the fetch's
+// own deadline.
+func TestStopAllEndsAHangingFetch(t *testing.T) {
+	calls := fakeSSH(t, "exec sleep 30")
+	supervisor := newSupervisor(t)
+	go func() { _, _ = supervisor.Run(context.Background(), "tarpit", "true") }()
+	pid, _ := strconv.Atoi(strings.Fields(waitForCalls(t, calls, 1)[0])[0])
+
+	within(t, 2*time.Second, "StopAll", supervisor.StopAll)
+
+	if err := syscall.Kill(pid, 0); err == nil {
+		t.Errorf("ssh %d still runs after StopAll", pid)
 	}
 }

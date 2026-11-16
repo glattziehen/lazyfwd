@@ -219,7 +219,10 @@ func (c *connection) ensureMaster(ctx context.Context, queuedAt time.Time) error
 		return c.failedOpen
 	}
 	err := c.openMaster(ctx)
-	c.failedOpen, c.failedOpenAt = err, time.Now()
+	// Share only what the host answered, not the end of one caller's context.
+	if ctx.Err() == nil {
+		c.failedOpen, c.failedOpenAt = err, time.Now()
+	}
 	return err
 }
 
