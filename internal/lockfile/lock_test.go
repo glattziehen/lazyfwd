@@ -2,13 +2,13 @@ package lockfile
 
 import (
 	"bufio"
-	"fmt"
-	"os/exec"
-	"time"
 	"errors"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func openLockFile(t *testing.T, path string) *os.File {

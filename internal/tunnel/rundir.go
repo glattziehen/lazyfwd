@@ -76,10 +76,11 @@ func (d runDir) socketPath(host string) string {
 	return filepath.Join(d.path, socketName(host))
 }
 
-// remove deletes the run directory and releases its lock.
+// remove releases the run directory's lock and deletes the directory.
+// Windows deletes no open file, so the lock closes first.
 func (d runDir) remove() {
-	_ = os.RemoveAll(d.path)
 	_ = d.lock.Close()
+	_ = os.RemoveAll(d.path)
 }
 
 // closeLeftovers exits the masters in run directories whose lock is free,
@@ -102,8 +103,8 @@ func closeLeftovers(base string) {
 				_, _ = runControl(context.Background(), controlArgs(filepath.Join(dir, name), "exit", "lazyfwd"))
 			}
 		}
-		_ = os.RemoveAll(dir)
 		_ = lock.Close()
+		_ = os.RemoveAll(dir)
 	}
 }
 

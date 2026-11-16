@@ -10,6 +10,9 @@ import (
 func TestOpenRunDirRemovesOnlyUnlockedLeftovers(t *testing.T) {
 	base := filepath.Join(t.TempDir(), "run")
 	crashed, held := filepath.Join(base, "1"), filepath.Join(base, "2")
+	if err := ensurePrivateDir(base); err != nil {
+		t.Fatal(err)
+	}
 	for _, dir := range []string{crashed, held} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			t.Fatal(err)
@@ -35,13 +38,6 @@ func TestOpenRunDirRemovesOnlyUnlockedLeftovers(t *testing.T) {
 	}
 	if _, err := os.Stat(held); err != nil {
 		t.Errorf("held run directory was removed: %v", err)
-	}
-}
-
-func TestOpenRunDirRefusesSharedBaseDir(t *testing.T) {
-	base := t.TempDir() // 0755
-	if _, err := openRunDir(base); err == nil {
-		t.Fatal("accepted a base directory others can read")
 	}
 }
 

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"syscall"
 	"time"
 )
 
@@ -28,7 +27,7 @@ func IsLocalPortFree(port int) bool {
 	defer func() { _ = listener.Close() }()
 	listener6, err := config.Listen(context.Background(), "tcp6", net.JoinHostPort("::1", portText))
 	if err != nil {
-		return !errors.Is(err, syscall.EADDRINUSE)
+		return !errors.Is(err, errAddrInUse)
 	}
 	_ = listener6.Close()
 	return true
