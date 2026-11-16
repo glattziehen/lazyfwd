@@ -105,20 +105,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.message = ""
+	// Methods that change m run before the return reads it; Go leaves the
+	// order within one return statement unspecified.
+	var cmd tea.Cmd
 	switch key := msg.String(); key {
 	case "q", "ctrl+c":
 		m.supervisor.StopAll()
 		return m, tea.Quit
 	case "tab":
-		return m, m.focusPanel((m.focus + 1) % panelCount)
+		cmd = m.focusPanel((m.focus + 1) % panelCount)
 	case "shift+tab":
-		return m, m.focusPanel((m.focus + panelCount - 1) % panelCount)
+		cmd = m.focusPanel((m.focus + panelCount - 1) % panelCount)
 	case "1", "h", "left":
-		return m, m.focusPanel(panelHosts)
+		cmd = m.focusPanel(panelHosts)
 	case "2", "l", "right":
-		return m, m.focusPanel(panelForwards)
+		cmd = m.focusPanel(panelForwards)
 	case "3":
-		return m, m.focusPanel(panelListeners)
+		cmd = m.focusPanel(panelListeners)
 	case "j", "down":
 		m.move(1)
 	case "k", "up":
@@ -128,18 +131,18 @@ func (m Model) updateKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.form = newForwardForm(workspace.Remote)
 		}
 	case "r":
-		return m, m.fetchListeners()
+		cmd = m.fetchListeners()
 	default:
 		switch m.focus {
 		case panelHosts:
-			return m, m.updateHostKey(key)
+			cmd = m.updateHostKey(key)
 		case panelForwards:
 			m.updateForwardKey(key)
 		case panelListeners:
 			m.updateListenerKey(key)
 		}
 	}
-	return m, nil
+	return m, cmd
 }
 
 // focusPanel moves focus. Entering a host's forwards or listeners fetches its
