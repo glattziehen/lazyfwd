@@ -3,13 +3,9 @@ package tunnel
 
 import (
 	"bytes"
-	"errors"
-	"net"
 	"os/exec"
-	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"github.com/moritzwilksch/lazyfwd/internal/workspace"
 )
@@ -102,24 +98,6 @@ func (s *Supervisor) IsRunning(id workspace.ForwardID) bool {
 	defer s.mu.Unlock()
 	_, ok := s.processes[id]
 	return ok
-}
-
-// IsLaptopPortFree reports whether a TCP port on the laptop's loopback can be
-// bound. ssh binds "localhost" on IPv4 and IPv6, so both must be free; a
-// machine without IPv6 only needs IPv4.
-func IsLaptopPortFree(port int) bool {
-	portText := strconv.Itoa(port)
-	listener, err := net.Listen("tcp4", net.JoinHostPort("127.0.0.1", portText))
-	if err != nil {
-		return false
-	}
-	defer listener.Close()
-	listener6, err := net.Listen("tcp6", net.JoinHostPort("::1", portText))
-	if err != nil {
-		return !errors.Is(err, syscall.EADDRINUSE)
-	}
-	_ = listener6.Close()
-	return true
 }
 
 func lastLine(text string) string {
