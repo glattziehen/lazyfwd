@@ -14,6 +14,9 @@ const (
 	minListenersHeight = 7
 	// maxLiveRows caps the Live panel, which scrolls beyond it.
 	maxLiveRows = 6
+	// maxFooterLines is the footer's height at most: the selected forward's
+	// command or failure, a message, and the key hints.
+	maxFooterLines = 3
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
@@ -93,21 +96,27 @@ func (m Model) View() string {
 	if len(liveLines) == 0 {
 		liveLines = []string{styleMuted.Render("no running or failed forwards")}
 	}
-	// The Live panel fits its rows, up to maxLiveRows and a third of the screen.
-	liveHeight := min(min(len(liveLines), maxLiveRows)+2, max(3, bodyHeight/3))
-	lowerHeight := bodyHeight - liveHeight
+	// The Live panel, at the bottom, fits its rows, up to maxLiveRows and a
+	// third of the screen. The Forwards/Listening split assumes the tallest
+	// Live panel and footer, so a start or stop, which changes both, moves
+	// only the bottom edges above Live.
+	splitHeight := m.height - maxFooterLines
+	liveHeightMax := min(maxLiveRows+2, max(3, splitHeight/3))
+	liveHeight := min(len(liveLines)+2, liveHeightMax)
+	upperHeight := bodyHeight - liveHeight
+	forwardsHeight := splitHeight - liveHeightMax - max(minListenersHeight, (splitHeight-liveHeightMax)/3)
 	rightWidth := m.width - hostsPanelWidth
-	listenersHeight := max(minListenersHeight, lowerHeight/3)
 	host := m.selectedHost()
+	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, upperHeight)
+	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, forwardsHeight)
+	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, upperHeight-forwardsHeight)
 	livePanel := m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), m.width, liveHeight)
-	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, lowerHeight)
-	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, lowerHeight-listenersHeight)
-	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, listenersHeight)
 	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
-	return lipgloss.JoinVertical(lipgloss.Left, livePanel, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), footer)
+	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), livePanel, footer)
 }
 
-var panelNames = [panelCount]string{"Live", "Hosts", "Forwards", "Listening"}
+// panelNames are the panels' names, indexed by number key minus one.
+var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening", "Live"}
 
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
 // title reads "[n]─Name · detail", where n is the panel's number key, and the bottom edge shows the cursor
@@ -120,7 +129,7 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	if isFocused {
 		number, name, chrome = styleFocus, styleFocus.Bold(true), styleFocus
 	}
-	title := number.Render(fmt.Sprintf("[%d]", which)) + chrome.Render("─") + name.Render(panelNames[which])
+	title := number.Render(fmt.Sprintf("[%d]", which)) + chrome.Render("─") + name.Render(panelNames[which-1])
 	if detail != "" {
 		title += styleMuted.Render(" · " + detail)
 	}
