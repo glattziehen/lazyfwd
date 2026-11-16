@@ -159,7 +159,7 @@ func (m Model) updateKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		cmd = m.focusPanel((m.focus + panelCount - 1) % panelCount)
 	case "0":
 		cmd = m.focusPanel(panelLive)
-	case "1":
+	case "1", "esc":
 		cmd = m.focusPanel(panelHosts)
 	case "2":
 		cmd = m.focusPanel(panelForwards)

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -16,9 +18,8 @@ import (
 const (
 	// masterCheckInterval is how often a connection looks for its master's death.
 	masterCheckInterval = 2 * time.Second
-	// socketProbeTimeout bounds the check whether a remote socket is live; a
-	// server that holds the probe's connection open counts as live.
-	socketProbeTimeout = 5 * time.Second
+	// probeTimeout bounds the check whether something listens on the host.
+	probeTimeout = 5 * time.Second
 	// masterOpenTimeout bounds opening a master without prompts. ssh's
 	// ConnectTimeout stops counting once the server sends its banner, so a
 	// server that stalls after that would hang the connect for good.
@@ -160,11 +161,9 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 	if !c.supervisor.isCurrent(forward.ID, generation) {
 		return
 	}
-	if forward.Direction == workspace.Local && forward.Bind.IsSocket() {
-		if err := freeLocalSocket(forward.Bind.Path); err != nil {
-			c.supervisor.fail(forward.ID, generation, err.Error(), false)
-			return
-		}
+	if err := c.checkBind(ctx, forward); err != nil {
+		c.supervisor.fail(forward.ID, generation, err.Error(), false)
+		return
 	}
 	output, err := runControl(ctx, forwardArgs(c.socketPath, forward))
 	if err != nil && c.removeStaleRemoteSocket(ctx, forward) {
@@ -177,6 +176,43 @@ func (c *connection) start(ctx context.Context, forward workspace.Forward, gener
 	c.established[forward.ID] = established{forward: forward, generation: generation}
 }
 
+// checkBind readies the forward's listening end, or says why it cannot
+// listen there. A remote socket left from an earlier run is removed only
+// after ssh refuses it, in removeStaleRemoteSocket.
+func (c *connection) checkBind(ctx context.Context, forward workspace.Forward) error {
+	switch {
+	case forward.Direction == workspace.Local && forward.Bind.IsSocket():
+		return freeLocalSocket(forward.Bind.Path)
+	case forward.Direction == workspace.Local:
+		return checkLocalPort(forward.Bind.Port)
+	case !forward.Bind.IsSocket():
+		return c.checkRemotePort(ctx, forward.Bind.Port)
+	}
+	return nil
+}
+
+// checkRemotePort reports an error naming the port when something listens on
+// it on the host's loopback. Like ssh on the local machine, sshd reports
+// success when it binds localhost on only one of IPv4 and IPv6.
+func (c *connection) checkRemotePort(ctx context.Context, port int) error {
+	for _, host := range loopbackHosts {
+		if c.isRemoteListening(ctx, net.JoinHostPort(host, strconv.Itoa(port))) {
+			return fmt.Errorf("localhost:%d on %s is already in use", port, c.host)
+		}
+	}
+	return nil
+}
+
+// isRemoteListening reports whether something on the host accepts on target,
+// a socket path or host:port. A server that holds the probe's connection
+// open counts as listening.
+func (c *connection) isRemoteListening(ctx context.Context, target string) bool {
+	probeCtx, cancel := context.WithTimeout(ctx, probeTimeout)
+	defer cancel()
+	err := exec.CommandContext(probeCtx, "ssh", probeArgs(c.socketPath, c.host, target)...).Run()
+	return err == nil || probeCtx.Err() != nil
+}
+
 // removeStaleRemoteSocket removes a remote forward's socket path on the host
 // when nothing accepts on it. sshd leaves the socket file behind when a
 // forward stops and, unless the server sets StreamLocalBindUnlink, refuses to
@@ -185,14 +221,11 @@ func (c *connection) removeStaleRemoteSocket(ctx context.Context, forward worksp
 	if forward.Direction != workspace.Remote || !forward.Bind.IsSocket() {
 		return false
 	}
-	probeCtx, cancel := context.WithTimeout(ctx, socketProbeTimeout)
-	defer cancel()
-	err := exec.CommandContext(probeCtx, "ssh", probeSocketArgs(c.socketPath, c.host, forward.Bind.Path)...).Run()
-	if err == nil || probeCtx.Err() != nil {
+	if c.isRemoteListening(ctx, forward.Bind.Path) {
 		return false
 	}
 	command := removeSocketCommand(forward.Bind.Path)
-	_, err = runControl(ctx, remoteCommandArgs(c.socketPath, c.host, command))
+	_, err := runControl(ctx, remoteCommandArgs(c.socketPath, c.host, command))
 	return err == nil
 }
 

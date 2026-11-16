@@ -71,15 +71,15 @@ func remoteCommandArgs(socketPath, host, command string) []string {
 	}
 }
 
-// probeSocketArgs connect stdin and stdout to a unix socket on host through
-// the master. ssh exits 255 at once when nothing accepts on the path; a live
-// socket takes the connection.
-func probeSocketArgs(socketPath, host, remotePath string) []string {
+// probeArgs connect stdin and stdout through the master to target on host:
+// a unix socket path or host:port. ssh exits 255 at once when nothing
+// accepts on target; a live listener takes the connection.
+func probeArgs(socketPath, host, target string) []string {
 	return []string{
 		"-S", socketPath,
 		"-o", "ControlMaster=no",
 		"-o", "BatchMode=yes",
-		"-W", remotePath,
+		"-W", target,
 		"--", host,
 	}
 }

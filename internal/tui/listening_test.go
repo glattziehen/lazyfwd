@@ -53,3 +53,11 @@ func TestListeningOpenOnUnforwardedPortAsksToForwardFirst(t *testing.T) {
 		t.Fatalf("message = %q, forwards = %d", m.message, len(m.workspace.Forwards))
 	}
 }
+
+func TestEscFocusesHostsWithoutFetching(t *testing.T) {
+	m := newListeningModel(t)
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if focus := next.(Model).focus; focus != panelHosts || cmd != nil {
+		t.Fatalf("focus = %v, cmd = %v; want Hosts and no command", focus, cmd)
+	}
+}
