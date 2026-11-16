@@ -64,7 +64,7 @@ Either end of a forward can be a unix socket instead of a TCP port, in both dire
 - local forward, remote end `8080`, local end `/tmp/app.sock`: a local socket that reaches port 8080 on the host.
 - remote forward, local end `/run/user/1000/app.sock`, remote end `/tmp/app.sock`: a socket on the host that reaches a local one.
 
-A socket path must be absolute and may hold only letters, digits, and `/ . _ + @ % = -`, at most 103 bytes. ssh expands neither `~` nor relative paths on either end, so lazyfwd refuses them. When the target is a socket, there is no port to copy, so set the listening end yourself.
+A socket path must be absolute and may hold only letters, digits, and `/ . _ + @ = -`, at most 103 bytes. ssh expands neither `~` nor relative paths on either end, so lazyfwd refuses them, and it would expand `%` tokens such as `%h` into another path. When the target is a socket, there is no port to copy, so set the listening end yourself.
 
 A socket end shows its path. Only a TCP local end is a link, and `o` on a socket end says why it cannot open.
 
