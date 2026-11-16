@@ -16,7 +16,7 @@ func TestEverySSHCallEndsOptionsBeforeTheHost(t *testing.T) {
 		"control":      controlArgs("/s", "exit", host),
 		"forward":      forwardArgs("/s", forward),
 		"cancel":       cancelArgs("/s", forward),
-		"socket probe": probeSocketArgs("/s", host, "/tmp/app.sock"),
+		"probe":        probeArgs("/s", host, "/tmp/app.sock"),
 	}
 	for name, args := range calls {
 		if len(args) < 2 || !slices.Equal(args[len(args)-2:], []string{"--", host}) {
