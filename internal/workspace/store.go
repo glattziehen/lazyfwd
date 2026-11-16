@@ -79,3 +79,36 @@ func (s FileStore) Lock() (release func(), err error) {
 	}
 	return func() { file.Close() }, nil
 }
+
+// forwardJSON is a Forward as workspace.json stores it. Files from before
+// socket support have only bind_port; a socket bind goes in bind_path, so
+// those files load unchanged.
+type forwardJSON struct {
+	ID        ForwardID `json:"id"`
+	Host      string    `json:"host"`
+	Direction Direction `json:"direction"`
+	BindPort  int       `json:"bind_port,omitempty"`
+	BindPath  string    `json:"bind_path,omitempty"`
+	Target    End       `json:"target"`
+}
+
+func (f Forward) MarshalJSON() ([]byte, error) {
+	return json.Marshal(forwardJSON{
+		ID: f.ID, Host: f.Host, Direction: f.Direction,
+		BindPort: f.Bind.Port, BindPath: f.Bind.Path,
+		Target: f.Target,
+	})
+}
+
+func (f *Forward) UnmarshalJSON(data []byte) error {
+	var stored forwardJSON
+	if err := json.Unmarshal(data, &stored); err != nil {
+		return err
+	}
+	bind := End{Host: BindHost, Port: stored.BindPort}
+	if stored.BindPath != "" {
+		bind = End{Path: stored.BindPath}
+	}
+	*f = Forward{ID: stored.ID, Host: stored.Host, Direction: stored.Direction, Bind: bind, Target: stored.Target}
+	return nil
+}

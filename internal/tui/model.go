@@ -347,6 +347,10 @@ func (m *Model) actOnForward(key string, forward workspace.Forward) {
 		m.forwardIndex = clamp(m.forwardIndex, len(m.forwards()))
 	case "o":
 		url, isWeb := forward.LocalURL()
+		if forward.LocalEnd().IsSocket() {
+			m.message = fmt.Sprintf("%s is a unix socket, which a browser cannot open; connect with its client", forward.LocalEnd())
+			return
+		}
 		if !isWeb {
 			m.message = fmt.Sprintf("%s is not a web port; connect with its client", forward.LocalEnd())
 			return
@@ -376,7 +380,7 @@ func (m *Model) updateListenerKey(key string) {
 			return
 		}
 		target := workspace.End{Host: workspace.DefaultTargetHost, Port: listener.Port}
-		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, 0, tunnel.IsLocalPortFree)
+		added, err := m.workspace.AddForwards(m.selectedHost(), workspace.Local, []workspace.End{target}, workspace.End{}, tunnel.IsLocalPortFree)
 		if err != nil {
 			m.message = err.Error()
 			return
@@ -445,11 +449,11 @@ func (m *Model) submit() error {
 		if err != nil {
 			return err
 		}
-		bindPort, err := workspace.ParsePort(f.value(1))
+		bind, err := workspace.ParseBind(f.value(1))
 		if err != nil {
 			return err
 		}
-		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bindPort, tunnel.IsLocalPortFree)
+		added, err := m.workspace.AddForwards(m.selectedHost(), f.direction, targets, bind, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}
@@ -468,7 +472,7 @@ func (m *Model) submit() error {
 		if len(targets) != 1 {
 			return fmt.Errorf("a forward has one target, got %d", len(targets))
 		}
-		bindPort, err := workspace.ParsePort(f.value(1))
+		bind, err := workspace.ParseBind(f.value(1))
 		if err != nil {
 			return err
 		}
@@ -476,7 +480,7 @@ func (m *Model) submit() error {
 		wasRunning := m.supervisor.IsRunning(f.forwardID)
 		m.supervisor.Stop(f.forwardID)
 		delete(m.failures, f.forwardID)
-		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bindPort, tunnel.IsLocalPortFree)
+		forward, err := m.workspace.UpdateForward(f.forwardID, targets[0], bind, tunnel.IsLocalPortFree)
 		if err != nil {
 			return err
 		}
