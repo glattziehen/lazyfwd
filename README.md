@@ -2,7 +2,13 @@
 
 A keyboard-first TUI for ssh port forwards, in the spirit of lazygit. Pick a host, forward ports in either direction, and click the laptop end to open it in the browser.
 
-lazyfwd runs your system `ssh`, so `~/.ssh/config`, agents, and ProxyJump work as usual. It reads hosts from `~/.ssh/config` (including `Include`d files) and never edits it.
+lazyfwd runs your system `ssh`, so `~/.ssh/config`, agents, and ProxyJump work as usual. It lists the hosts named in `Host` lines of `~/.ssh/config` and `/etc/ssh/ssh_config` (including `Include`d files) and never edits them. Hosts that only a `Match` block or a pattern such as `Host *.lab` describes are not listed; add them with `a`.
+
+## Platforms
+
+lazyfwd supports Linux and macOS laptops; in WSL it runs as on Linux. Windows itself is not supported for now.
+
+The remote host can be Linux (with `ss`, `netstat`, or only `/proc`), macOS, or a BSD. lazyfwd lists a remote host's listening ports with whichever of `ss`, `netstat`, `sockstat`, `lsof`, or `/proc/net/tcp` the host has. On a host without a POSIX `sh`, such as Windows, the Listening panel says it cannot list ports; forwards you add by hand work everywhere.
 
 ## Install
 
@@ -23,9 +29,9 @@ pixi run build   # writes ./lazyfwd
 Run `lazyfwd`. The screen has four panels, numbered by their key:
 
 0. **Live** forwards of all hosts, across the top: every running or failed forward, so you can start, stop, open, or edit it without picking its host first. A stopped forward leaves the list; a failed one stays, with ssh's error in the footer, until you restart or delete it. `enter` shows the forward in its host's Forwards panel.
-1. **Hosts**: your `~/.ssh/config` hosts plus hosts you add. Pinned hosts (`*`) sort first. `●2 ✗1` counts a host's running and failed forwards.
-2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads laptop end, arrow, remote end; `→` is a local forward and `←` a remote one. The laptop end is a clickable link in terminals that support OSC 8 hyperlinks.
-3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and laptop end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`: `ss -ltnp` on Linux, `lsof` and `netstat` on macOS. By default it lists only your own processes, which hides system services such as sshd or tailscaled; `t` shows all ports, with `-` in place of the process name for other users' services.
+1. **Hosts**: the hosts of your ssh config plus hosts you add. Pinned hosts (`*`) sort first. `●2 ✗1` counts a host's running and failed forwards.
+2. **Forwards** of the selected host: `●` running, `○` stopped, `✗` failed (the footer shows ssh's error). Each row reads laptop end, arrow, remote end; `→` is a local forward and `←` a remote one. The laptop end is a clickable link in terminals that support OSC 8 hyperlinks: `https://` when the target port is 443 or 8443, `http://` otherwise, and no link for well-known non-web ports such as 22, 3306, 5432, or 6379.
+3. **Listening** ports on the selected host, with the owning process. A forwarded port shows the forward's status and laptop end, e.g. `● → localhost:4966`. lazyfwd asks the host over one ssh command when you enter it, and again only when you press `r`. By default it lists only your own processes, which hides system services such as sshd or tailscaled and Docker's published ports, which belong to root; the panel's last line counts the hidden ports, and `t` shows all ports, with `-` in place of the process name for other users' services. On a Linux host with neither `ss` nor `netstat`, no port has a process name, so only `t` shows them.
 
 Colours come from your terminal's 16-colour palette, so your theme applies: green is running, red is failed, faint text is stopped or a hint, cyan marks the focused panel, blue a clickable laptop end, and yellow a pin.
 
@@ -35,7 +41,9 @@ Add a remote forward (`ssh -R`, a port on the host that reaches your laptop) wit
 
 Each forward is its own `ssh -N` process, started when you add it. Forwards stop when lazyfwd quits and come back stopped next time. lazyfwd uses `BatchMode=yes`, so hosts must authenticate without a prompt (key or agent).
 
-lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS).
+`o` opens the laptop end with `open` on macOS, and with `wslview` in WSL or `xdg-open` on Linux. On a machine without a graphical session, such as a server you reached over ssh, it names the URL to open yourself.
+
+lazyfwd saves hosts, pins, and forwards in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS). Only one lazyfwd runs per workspace file; a second one exits with a message.
 
 ## Keys
 
