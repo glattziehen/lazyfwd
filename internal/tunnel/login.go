@@ -1,10 +1,15 @@
 package tunnel
 
 import (
+	"errors"
 	"io"
 	"os"
 	"os/exec"
 )
+
+// errLoginCancelled reports that ssh ended on a signal, such as ctrl+c at
+// its prompt.
+var errLoginCancelled = errors.New("cancelled")
 
 // Login is an interactive ssh that opens a host's master on the terminal, so
 // the user can accept a host key or answer a password, passphrase, or 2FA
@@ -26,7 +31,12 @@ func (l *Login) Run() error {
 	// A stale socket would make the new master run without one.
 	_ = os.Remove(l.socketPath)
 	_ = os.Remove(l.logPath)
-	if err := l.cmd.Run(); err != nil {
+	err := l.cmd.Run()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && !exitErr.Exited() {
+		return errLoginCancelled
+	}
+	if err != nil {
 		return connectError(l.Host, l.logPath, err)
 	}
 	return nil
