@@ -3,7 +3,7 @@ package tui
 import (
 	"testing"
 
-	"github.com/moritzwilksch/lazyfwd/internal/workspace"
+	"github.com/glattziehen/lazyfwd/internal/workspace"
 )
 
 // Changing only a port must be one word to replace: alt+backspace deletes
