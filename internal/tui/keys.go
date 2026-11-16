@@ -21,11 +21,12 @@ var keyHelpRows = []keyHelpRow{
 	{"p", "Hosts", "pin or unpin the host"},
 	{"d", "Hosts", "remove an added host that has no forwards"},
 	{"enter", "Hosts", "open the host's forwards"},
-	{"a", "Forwards, Listening", "add a local forward"},
+	{"a", "Forwards", "add a local forward"},
 	{"space", "Forwards", "start or stop the forward"},
 	{"e", "Forwards", "edit the forward"},
 	{"d", "Forwards", "delete the forward"},
 	{"o", "Forwards", "open the laptop end in the browser"},
+	{"a", "Listening", "add a local forward"},
 	{"enter", "Listening", "forward this port to the laptop"},
 	{"t", "Listening", "show your ports or all ports"},
 }
