@@ -8,8 +8,7 @@ builds:
     goos: [linux, darwin]
     goarch: [amd64, arm64]
     flags: [-trimpath]
-    # lazyfwd reads its version from the build info the go command stamps,
-    # so no -X flags.
+    # lazyfwd embeds its version from VERSION, so no -X flags.
     ldflags: [-s -w]
 
 archives:
@@ -27,3 +26,7 @@ changelog:
 release:
   # A rerun replaces the assets an earlier run uploaded.
   replace_existing_artifacts: true
+
+# A local snapshot carries VERSION's number, as a release does, instead of a commit hash.
+snapshot:
+  version_template: '{{ readFile "VERSION" | trim }}'

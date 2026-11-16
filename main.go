@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime/debug"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -59,15 +58,4 @@ func run() error {
 	defer supervisor.StopAll()
 	_, err = tea.NewProgram(tui.New(store, supervisor, ws, sshConfigHosts), tea.WithAltScreen()).Run()
 	return err
-}
-
-// version is the main module version the go command stamps at build time:
-// the tag for a release or `go install ...@vX`, a pseudo-version from git for
-// a local build, and "(devel)" for a build outside a git checkout.
-func version() string {
-	info, ok := debug.ReadBuildInfo()
-	if !ok || info.Main.Version == "" {
-		return "(devel)"
-	}
-	return info.Main.Version
 }

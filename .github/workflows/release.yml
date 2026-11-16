@@ -1,5 +1,5 @@
 name: Release
-# Keeps a `chore: release vX.Y.Z` pull request open that updates CHANGELOG.md from the conventional
+# Keeps a `chore: release X.Y.Z` pull request open that bumps VERSION and updates CHANGELOG.md from the conventional
 # commits since the last tag. Merging it tags the release; the tag runs Publish.
 on:
   push:
@@ -34,6 +34,10 @@ jobs:
           if [ -z "$version" ]; then
             echo "CHANGELOG.md has no released version."
             exit 0
+          fi
+          if [ "$(cat VERSION)" != "$version" ]; then
+            echo "::error::VERSION holds $(cat VERSION), but CHANGELOG.md's top version is $version"
+            exit 1
           fi
           tag="v$version"
           if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
@@ -84,11 +88,13 @@ jobs:
             exit 0
           fi
           echo "next=$next" >> "$GITHUB_OUTPUT"
-      - name: Update the changelog
+          echo "number=${next#v}" >> "$GITHUB_OUTPUT"
+      - name: Bump the version and update the changelog
         if: steps.version.outputs.next
         env:
           NEXT: ${{ steps.version.outputs.next }}
         run: |
+          echo "${NEXT#v}" > VERSION
           git cliff --tag "$NEXT" -o CHANGELOG.md
           awk -v v="${NEXT#v}" '/^## \[/ { p = index($0, "## [" v "]") == 1; next } p' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
       # An octo-sts token rather than GITHUB_TOKEN, so that the pull request runs CI.
@@ -107,9 +113,10 @@ jobs:
           token: ${{ steps.octo-sts.outputs.token }}
           branch: release
           base: main
-          title: "chore: release ${{ steps.version.outputs.next }}"
-          commit-message: "chore: release ${{ steps.version.outputs.next }}"
+          title: "chore: release ${{ steps.version.outputs.number }}"
+          commit-message: "chore: release ${{ steps.version.outputs.number }}"
           body-path: ${{ runner.temp }}/notes.md
           add-paths: |
+            VERSION
             CHANGELOG.md
           sign-commits: true
