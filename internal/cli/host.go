@@ -84,7 +84,8 @@ edits. It prints nothing.`,
 		&cobra.Command{
 			Use:   "pin HOST",
 			Short: "Pin a host, so it is listed first",
-			Long:  `Pin a listed host, so it is listed first. It prints the host as "lazyfwd host list" does.`,
+			Long: `Pin a listed host, so it is listed first. It prints the host as
+"lazyfwd host list" does.`,
 			Example: `  lazyfwd host pin box
   lazyfwd host pin box --json`,
 			Args: cobra.ExactArgs(1),
@@ -95,7 +96,8 @@ edits. It prints nothing.`,
 		&cobra.Command{
 			Use:   "unpin HOST",
 			Short: "Unpin a host, so it is listed by name",
-			Long:  `Unpin a listed host, so it is listed by name. It prints the host as "lazyfwd host list" does.`,
+			Long: `Unpin a listed host, so it is listed by name. It prints the host as
+"lazyfwd host list" does.`,
 			Example: `  lazyfwd host unpin box
   lazyfwd host unpin box --json`,
 			Args: cobra.ExactArgs(1),

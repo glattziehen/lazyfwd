@@ -64,7 +64,7 @@ forwards by the ID that "lazyfwd forward list" shows.`,
 		&cobra.Command{
 			Use:   "delete ID...",
 			Short: "Stop and delete forwards",
-			Long:  "Stop and delete forwards. It checks every ID before it deletes any, and prints nothing.",
+			Long:  "Stop and delete forwards. It checks every ID before it deletes any, and prints\nnothing.",
 			Example: `  lazyfwd forward delete 3
   lazyfwd forward delete 3 4 5`,
 			Args: cobra.MinimumNArgs(1),
@@ -90,7 +90,7 @@ forwards by the ID that "lazyfwd forward list" shows.`,
   lazyfwd forward stop $(lazyfwd forward list box --json | jq -r '.[].id')`),
 		newForwardRunCommand(e, "toggle", control.OpToggleForwards,
 			"Stop running forwards and start the others",
-			"Stop each starting or running forward, and start each stopped or failed one, as space does in the terminal UI.",
+			"Stop each starting or running forward, and start each stopped or failed one,\nas space does in the terminal UI.",
 			`  lazyfwd forward toggle 3
   lazyfwd forward toggle 3 4 --no-wait`),
 		newForwardOpenCommand(e),
@@ -283,7 +283,7 @@ func newForwardRunCommand(e env, name string, op control.Op, short, long, exampl
 	command := &cobra.Command{
 		Use:     name + " ID...",
 		Short:   short,
-		Long:    long + " It checks every ID before it acts on any, and needs a running owner.",
+		Long:    long + "\n\nIt checks every ID before it acts on any, and needs a running owner.",
 		Example: example,
 		Args:    cobra.MinimumNArgs(1),
 		RunE: action(func(cmd *cobra.Command, args []string) error {
@@ -300,14 +300,14 @@ func newForwardRunCommand(e env, name string, op control.Op, short, long, exampl
 		}),
 	}
 	if op == control.OpStopForwards {
-		command.Long += ` It prints the forwards as "lazyfwd forward list" does.`
+		command.Long += "\nIt prints the forwards as \"lazyfwd forward list\" does."
 		return command
 	}
 	command.Long += `
 
 A forward that starts takes until ssh has connected and the master holds the
-forward: the command waits up to ` + startWait.String() + ` for that, unless --no-wait is given. It
-prints the forwards as "lazyfwd forward list" does, then exits with 1 if a
+forward: the command waits up to ` + strconv.Itoa(int(startWait.Seconds())) + ` seconds for that, unless --no-wait is
+given. It prints the forwards as "lazyfwd forward list" does, then exits with 1 if a
 forward failed, 4 if a host needs an interactive login, and 5 if a forward was
 still starting when the wait ended.`
 	command.Flags().BoolVar(&isNotWaiting, "no-wait", false, "return while forwards are still starting")
@@ -343,7 +343,7 @@ func startOutcome(forwards []owner.ForwardState, isWaiting bool) error {
 		case status.State == tunnel.Failed:
 			failed = append(failed, fmt.Sprintf("forward %d failed: %s", forward.ID, status.Reason))
 		case status.State == tunnel.Starting && isWaiting:
-			starting = append(starting, fmt.Sprintf("forward %d is still starting after %s; it keeps starting, and `lazyfwd forward list` shows how it ends", forward.ID, startWait))
+			starting = append(starting, fmt.Sprintf("forward %d is still starting after %d seconds; it keeps starting, and `lazyfwd forward list` shows how it ends", forward.ID, int(startWait.Seconds())))
 		}
 	}
 	switch {
