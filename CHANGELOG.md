@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.1](https://github.com/glattziehen/lazyfwd/compare/v0.1.0...v0.1.1) - 2026-11-17
+
+### Features
+
+- _(cli)_ Manage hosts, forwards, and listening ports from the command line, with a headless serve ([#25](https://github.com/glattziehen/lazyfwd/pull/25))
+- Build and test on Windows ([#27](https://github.com/glattziehen/lazyfwd/pull/27))
+- Run forwards on Windows ([#28](https://github.com/glattziehen/lazyfwd/pull/28))
+
+### Bug fixes
+
+- _(release)_ Publish the changelog as release notes and ship third-party licenses ([#30](https://github.com/glattziehen/lazyfwd/pull/30))
+
+### Refactors
+
+- Hard-code the version as a constant instead of embedding VERSION ([#29](https://github.com/glattziehen/lazyfwd/pull/29))
+
 ## [0.1.0](https://github.com/glattziehen/lazyfwd/releases/tag/v0.1.0) - 2026-11-16
 
 ### Features
