@@ -22,7 +22,12 @@ archives:
       - goos: windows
         formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files: [LICENSE, README.md, third_party_licenses/**/*]
+    files:
+      - LICENSE
+      - README.md
+      # Only the licenses of what this OS's binary links.
+      - src: "third_party_licenses/{{ .Os }}/**/*"
+        dst: third_party_licenses
 
 checksum:
   name_template: checksums.txt
