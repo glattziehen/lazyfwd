@@ -29,8 +29,9 @@ postprocessors = [
 
 [git]
 conventional_commits = true
-# History before the switch to conventional commits stays out of the changelog.
-filter_unconventional = true
+# Unconventional commits land in "Other". .cliffignore keeps history from before the switch to
+# conventional commits out; filtering it here instead would warn about parse errors on every run.
+filter_unconventional = false
 protect_breaking_commits = true
 tag_pattern = "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
 sort_commits = "oldest"
