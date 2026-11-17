@@ -1,6 +1,7 @@
 name: Release
-# Keeps a `chore: release X.Y.Z` pull request open that bumps VERSION and updates CHANGELOG.md from the conventional
-# commits since the last tag. Merging it tags the release; the tag runs Publish.
+# Keeps a `chore: release X.Y.Z` pull request open that bumps the version in version.go and updates
+# CHANGELOG.md from the conventional commits since the last tag. Merging it tags the release; the tag
+# runs Publish.
 on:
   push:
     branches:
@@ -35,8 +36,9 @@ jobs:
             echo "CHANGELOG.md has no released version."
             exit 0
           fi
-          if [ "$(cat VERSION)" != "$version" ]; then
-            echo "::error::VERSION holds $(cat VERSION), but CHANGELOG.md's top version is $version"
+          current=$(sed -n 's/^const version = "\(.*\)"$/\1/p' version.go)
+          if [ "$current" != "$version" ]; then
+            echo "::error::version.go holds $current, but CHANGELOG.md's top version is $version"
             exit 1
           fi
           tag="v$version"
@@ -94,7 +96,7 @@ jobs:
         env:
           NEXT: ${{ steps.version.outputs.next }}
         run: |
-          echo "${NEXT#v}" > VERSION
+          sed -i "s/^const version = \".*\"$/const version = \"${NEXT#v}\"/" version.go
           git cliff --tag "$NEXT" -o CHANGELOG.md
           awk -v v="${NEXT#v}" '/^## \[/ { p = index($0, "## [" v "]") == 1; next } p' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
       # An octo-sts token rather than GITHUB_TOKEN, so that the pull request runs CI.
@@ -117,6 +119,6 @@ jobs:
           commit-message: "chore: release ${{ steps.version.outputs.number }}"
           body-path: ${{ runner.temp }}/notes.md
           add-paths: |
-            VERSION
+            version.go
             CHANGELOG.md
           sign-commits: true
