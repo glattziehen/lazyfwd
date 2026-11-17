@@ -36,3 +36,4 @@ go.work.sum
 !.pixi/config.toml
 /lazyfwd
 /dist/
+/third_party_licenses/
