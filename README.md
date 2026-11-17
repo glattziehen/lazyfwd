@@ -6,7 +6,10 @@ For example, if a web app runs on port 3000 on a remote host, you can select tha
 
 ## Terminal UI
 
-![lazyfwd: browse hosts, forward a listening port, then stop and start the forward](.github/assets/demo.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/demo-dark.gif">
+  <img alt="lazyfwd: browse hosts, forward a listening port, then stop and start the forward" src=".github/assets/demo-light.gif">
+</picture>
 
 Hosts comes from your SSH config, and you can add or pin hosts. Forwards shows the selected host's saved forwards. Listening shows its listening ports and process names when available. Live shows running and failed forwards across hosts.
 

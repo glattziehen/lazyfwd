@@ -1,5 +1,6 @@
 #!/bin/sh
-# Records the terminal UI with made-up hosts to .github/assets/demo.gif for the README.
+# Records the terminal UI with made-up hosts to .github/assets/demo-dark.gif and
+# demo-light.gif for the README.
 # Linux only. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg.
 # scripts/demo.tape holds the keystrokes.
 #
@@ -67,7 +68,7 @@ exec $(command -v ssh) -F "$work/home/.ssh/config" "\$@"
 SSH
 chmod +x "$work/bin/ssh"
 
-export LAZYFWD_DEMO_HOME="$work/home" XDG_CONFIG_HOME="$work/config" XDG_RUNTIME_DIR="$work/run"
+export LAZYFWD_DEMO_HOME="$work/home" XDG_RUNTIME_DIR="$work/run"
 export PATH="$work/bin:$PATH"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
@@ -80,12 +81,17 @@ for p in 8000 8888; do
   fi
 done
 
-# lazyfwd lists hosts from $HOME/.ssh/config. The tape switches HOME inside its shell
-# only, so vhs keeps its browser download in the real home.
-HOME=$LAZYFWD_DEMO_HOME lazyfwd host pin gpu-box >/dev/null
-HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add staging 8000 >/dev/null
-HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add db-primary 5432 --listen 15432 >/dev/null
-
-cd "$repo"
-# Chromium's sandbox needs user namespaces, which Ubuntu restricts.
-VHS_NO_SANDBOX=true vhs scripts/demo.tape
+# record THEME OUTPUT records the tape in THEME, each time from the same fresh workspace.
+record() {
+  export XDG_CONFIG_HOME="$work/config-$1"
+  # lazyfwd lists hosts from $HOME/.ssh/config. The tape switches HOME inside its shell
+  # only, so vhs keeps its browser download in the real home.
+  HOME=$LAZYFWD_DEMO_HOME lazyfwd host pin gpu-box >/dev/null
+  HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add staging 8000 >/dev/null
+  HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add db-primary 5432 --listen 15432 >/dev/null
+  printf 'Output %s\nSet Theme "%s"\n' "$2" "$1" | cat - "$repo/scripts/demo.tape" > "$work/demo.tape"
+  # Chromium's sandbox needs user namespaces, which Ubuntu restricts.
+  (cd "$repo" && VHS_NO_SANDBOX=true vhs "$work/demo.tape")
+}
+record Dracula .github/assets/demo-dark.gif
+record "Catppuccin Latte" .github/assets/demo-light.gif

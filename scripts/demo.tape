@@ -1,9 +1,6 @@
-# Keystrokes for .github/assets/demo.gif. Run through scripts/demo.sh, which sets up the
-# made-up hosts this expects.
-Output .github/assets/demo.gif
-
+# Keystrokes for .github/assets/demo-{dark,light}.gif. Run through scripts/demo.sh, which
+# sets up the made-up hosts this expects and prepends Output and Set Theme per recording.
 Set Shell "bash"
-Set Theme "Dracula"
 Set FontSize 16
 Set Width 1200
 Set Height 560
