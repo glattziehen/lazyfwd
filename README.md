@@ -6,7 +6,7 @@ For example, if a web app runs on port 3000 on a remote host, you can select tha
 
 ## Terminal UI
 
-![lazyfwd with four made-up hosts: gpu-box has two running forwards and lists its listening ports](.github/assets/screenshot.svg)
+![lazyfwd: browse hosts, forward a listening port, then stop and start the forward](.github/assets/demo.gif)
 
 Hosts comes from your SSH config, and you can add or pin hosts. Forwards shows the selected host's saved forwards. Listening shows its listening ports and process names when available. Live shows running and failed forwards across hosts.
 

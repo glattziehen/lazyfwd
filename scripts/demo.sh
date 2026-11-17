@@ -1,6 +1,7 @@
 #!/bin/sh
-# Renders the terminal UI with made-up hosts to .github/assets/screenshot.svg for the README.
-# Linux only. Run it as "pixi run screenshot", which provides go, tmux, and freeze.
+# Records the terminal UI with made-up hosts to .github/assets/demo.gif for the README.
+# Linux only. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg.
+# scripts/demo.tape holds the keystrokes.
 #
 # The hosts are aliases in a throwaway ssh config that all reach a throwaway sshd on
 # 127.0.0.1 (e2e/sshd.sh). The sshd answers every remote command with a fake ss, so the
@@ -8,11 +9,8 @@
 # no listener behind them to run, so the forwards connect to nothing.
 set -eu
 repo=$(cd "$(dirname "$0")/.." && pwd)
-out=$repo/.github/assets/screenshot.svg
 work=$(mktemp -d)
-socket=lazyfwd-screenshot
 cleanup() {
-  tmux -L "$socket" kill-server 2>/dev/null || true
   # ssh masters outlive a lazyfwd that did not quit cleanly.
   pkill -f -- "-F $work/home/.ssh/config" 2>/dev/null || true
   [ -f "$work/sshd/sshd.pid" ] && kill "$(cat "$work/sshd/sshd.pid")" 2>/dev/null || true
@@ -69,45 +67,25 @@ exec $(command -v ssh) -F "$work/home/.ssh/config" "\$@"
 SSH
 chmod +x "$work/bin/ssh"
 
-export HOME="$work/home" XDG_CONFIG_HOME="$work/config" XDG_RUNTIME_DIR="$work/run"
+export LAZYFWD_DEMO_HOME="$work/home" XDG_CONFIG_HOME="$work/config" XDG_RUNTIME_DIR="$work/run"
 export PATH="$work/bin:$PATH"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
 # Local forwards listen on their remote port only when it is free here.
-for p in 6006 8000 8888; do
+for p in 8000 8888; do
   if ! python3 -c "import socket,sys; socket.socket().bind(('127.0.0.1', int(sys.argv[1])))" "$p" 2>/dev/null; then
     echo "port $p is in use on this machine; free it so the forwards show their remote ports" >&2
     exit 1
   fi
 done
 
-lazyfwd host pin gpu-box >/dev/null
-lazyfwd forward add gpu-box 8888 6006 >/dev/null
-lazyfwd forward add staging 8000 >/dev/null
-lazyfwd forward add db-primary 5432 --listen 15432 >/dev/null
+# lazyfwd lists hosts from $HOME/.ssh/config. The tape switches HOME inside its shell
+# only, so vhs keeps its browser download in the real home.
+HOME=$LAZYFWD_DEMO_HOME lazyfwd host pin gpu-box >/dev/null
+HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add staging 8000 >/dev/null
+HOME=$LAZYFWD_DEMO_HOME lazyfwd forward add db-primary 5432 --listen 15432 >/dev/null
 
-cols=120
-rows=24
-tmux -L "$socket" -f /dev/null new-session -d -x "$cols" -y "$rows" \
-  -e HOME="$HOME" -e XDG_CONFIG_HOME="$XDG_CONFIG_HOME" -e XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-  -e PATH="$PATH" -e TERM=xterm-256color -e COLORTERM=truecolor lazyfwd
-sleep 1
-lazyfwd forward start 1 2 3 >/dev/null
-# Focus gpu-box's Listening panel, which fetches its ports.
-tmux -L "$socket" send-keys 3
-sleep 2
-tmux -L "$socket" capture-pane -e -p > "$work/screen.ansi"
-# Quit, which stops the forwards and closes the ssh connections.
-tmux -L "$socket" send-keys q y
-sleep 1
-
-# freeze ignores "default foreground" (39) and faint (2): make them a reset and gray.
-esc=$(printf '\033')
-sed -e "s/$esc\[39m/$esc[0m/g" -e "s/$esc\[\(0;\)\{0,1\}2m/$esc[\190m/g" \
-  "$work/screen.ansi" > "$work/screen.fixed"
-
-mkdir -p "$(dirname "$out")"
-freeze --language ansi --window --theme dracula --font.size 14 --line-height 1 --padding 20 \
-  --border.radius 8 --output "$out" < "$work/screen.fixed"
-echo "wrote $out"
+cd "$repo"
+# Chromium's sandbox needs user namespaces, which Ubuntu restricts.
+VHS_NO_SANDBOX=true vhs scripts/demo.tape
