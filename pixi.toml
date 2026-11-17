@@ -10,7 +10,7 @@ run = "go run ."
 # The pre-commit hook (.lefthook.yml) over every file, as CI runs it.
 lint = "lefthook run pre-commit --all-files --no-stage-fixed"
 lefthook-install = "lefthook install"
-# Records .github/assets/demo-{dark,light}.gif for the README (Linux only).
+# Records .github/assets/demo-{dark,light}.{gif,mp4} for the README (Linux and macOS).
 demo = "sh scripts/demo.sh"
 
 [dependencies]
