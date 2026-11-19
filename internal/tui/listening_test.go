@@ -17,7 +17,7 @@ func TestListeningPanelNamesPortsHiddenByYoursFilter(t *testing.T) {
 	m = send(m, tea.WindowSizeMsg{Width: 120, Height: 40})
 	found := []listeners.Listener{{Port: 3000, Process: "node"}, {Port: 5432}, {Port: 8080}}
 	m = send(m, listenersMsg{host: "box", result: listenerResult{listeners: found}})
-	if view := m.View(); !strings.Contains(view, "2 more of other users, such as Docker: t shows all") {
+	if view := m.View(); !strings.Contains(view, "+2 of other users, like Docker: t shows all") {
 		t.Fatalf("hint missing from view:\n%s", view)
 	}
 }
@@ -72,7 +72,7 @@ func TestListeningPanelSaysWhenHostHidesOtherUsersPorts(t *testing.T) {
 
 	m = send(m, keyMsg("t"))
 
-	if view := m.View(); !strings.Contains(view, "box shows you only your own ports") {
+	if view := m.View(); !strings.Contains(view, "box lists only your ports; others need root") {
 		t.Fatalf("note missing from view:\n%s", view)
 	}
 }

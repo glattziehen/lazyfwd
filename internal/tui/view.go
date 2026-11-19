@@ -11,13 +11,15 @@ import (
 )
 
 const (
-	hostsPanelWidth    = 34
-	minListenersHeight = 7
-	// maxLiveRows caps the Live panel, which scrolls beyond it.
-	maxLiveRows = 6
-	// maxFooterLines is the footer's height at most: the selected forward's
-	// command or failure, a message, and the key hints.
-	maxFooterLines = 3
+	// The side column takes two fifths of the screen, at least
+	// minSideWidth columns. Below minDetailsWidth left over, the Details
+	// pane is dropped and the side column takes the whole screen.
+	minSideWidth    = 40
+	minDetailsWidth = 24
+	// minPanelHeight fits a panel's frame and one row.
+	minPanelHeight = 3
+	// maxFooterLines is the footer's height at most: a message and the key hints.
+	maxFooterLines = 2
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
@@ -25,19 +27,33 @@ const (
 // hints, unfocused borders) is faint rather than ANSI 8 ("bright black"),
 // which some themes, such as Solarized Dark, map to the background colour.
 var (
-	colorFocus   = lipgloss.Color("6") // focused panel, cursor, and form field
-	colorRunning = lipgloss.Color("2")
-	colorFailed  = lipgloss.Color("1")
-	colorLink    = lipgloss.Color("4") // clickable local ends
-	colorPin     = lipgloss.Color("3")
+	colorFocus = lipgloss.Color("6") // focused panel and form field
+	// colorSelected is the cursor row's background: blue, as in lazygit. Light
+	// themes' blue is saturated enough that dark text on it is hard to read,
+	// so light terminals get a pale blue instead.
+	colorSelected = lipgloss.AdaptiveColor{Light: "153", Dark: "4"}
+	// colorInactive is the background of an unfocused panel's cursor row: a
+	// grey a step off the terminal's background. ANSI 8 would be the theme's
+	// own grey, but some themes, such as Solarized Dark, make it the background.
+	colorInactive = lipgloss.AdaptiveColor{Light: "254", Dark: "237"}
+	colorRunning  = lipgloss.Color("2")
+	colorFailed   = lipgloss.Color("1")
+	colorPin      = lipgloss.Color("3")
 
 	styleFocus   = lipgloss.NewStyle().Foreground(colorFocus)
 	styleRunning = lipgloss.NewStyle().Foreground(colorRunning)
 	styleFailed  = lipgloss.NewStyle().Foreground(colorFailed)
 	styleMuted   = lipgloss.NewStyle().Faint(true)
-	styleLink    = lipgloss.NewStyle().Foreground(colorLink)
 	stylePin     = lipgloss.NewStyle().Foreground(colorPin)
 	styleBold    = lipgloss.NewStyle().Bold(true)
+	// Clickable local ends are underlined rather than coloured, so they stay
+	// readable on the cursor row's background.
+	styleLink = lipgloss.NewStyle().Underline(true)
+	// styleSelected marks the cursor row of the focused panel and the chosen
+	// button. styleInactive marks the cursor row of the other panels, so the
+	// selected host, which the other panels show, stays easy to spot.
+	styleSelected = lipgloss.NewStyle().Background(colorSelected)
+	styleInactive = lipgloss.NewStyle().Background(colorInactive).Bold(true)
 )
 
 // forwardStatus is what the UI shows for a forward; each status has one
@@ -101,33 +117,37 @@ func (m Model) View() string {
 	if len(liveLines) == 0 {
 		liveLines = []string{styleMuted.Render("no running or failed forwards")}
 	}
-	// The Live panel, at the bottom, fits its rows, up to maxLiveRows and a
-	// third of the screen. The Forwards/Listening split assumes the tallest
-	// Live panel and footer, so a start or stop, which changes both, moves
-	// only the bottom edges above Live.
-	splitHeight := m.height - maxFooterLines
-	liveHeightMax := min(maxLiveRows+2, max(3, splitHeight/3))
-	liveHeight := min(len(liveLines)+2, liveHeightMax)
-	upperHeight := bodyHeight - liveHeight
-	forwardsHeight := splitHeight - liveHeightMax - max(minListenersHeight, (splitHeight-liveHeightMax)/3)
-	rightWidth := m.width - hostsPanelWidth
+	// The side column stacks the panels in key order, so h and l, which
+	// focus the previous and next panel, move up and down it, as in lazygit.
+	// Panels share the height left by the tallest footer; Live, at the
+	// bottom, takes the rest, so a message moves no panel's top edge.
+	sideWidth := max(minSideWidth, m.width*2/5)
+	if m.width-sideWidth < minDetailsWidth {
+		sideWidth = m.width
+	}
+	panelHeight := max(minPanelHeight, (m.height-maxFooterLines)/int(panelCount))
+	liveHeight := max(minPanelHeight, bodyHeight-int(panelCount-1)*panelHeight)
 	host := m.selectedHost()
-	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, upperHeight)
-	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, forwardsHeight)
-	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, upperHeight-forwardsHeight)
-	livePanel := m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), m.width, liveHeight)
-	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
-	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), livePanel, footer)
+	side := lipgloss.JoinVertical(lipgloss.Left,
+		m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, sideWidth, panelHeight),
+		m.panel(panelForwards, hostTitle(host), m.hostForwardLines(), len(m.forwards()), m.forwardIndex, sideWidth, panelHeight),
+		m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, sideWidth, panelHeight),
+		m.panel(panelLive, styleMuted.Render("all hosts"), liveLines, len(live), m.liveCursor(live), sideWidth, liveHeight),
+	)
+	if sideWidth < m.width {
+		side = lipgloss.JoinHorizontal(lipgloss.Top, side, m.detailsView(m.width-sideWidth, lipgloss.Height(side)))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, side, footer)
 }
 
 // panelNames are the panels' names, indexed by number key minus one.
 var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening", "Live"}
 
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
-// title reads "[n]─Name · detail", where n is the panel's number key, and the bottom edge shows the cursor
-// position among count items. The cursor is a marker column, since reverse
-// video breaks at the first styled cell inside a row; lines beyond count, such
-// as an empty-list hint, get no marker.
+// title reads "[n]─Name · detail", where n is the panel's number key, and the
+// bottom edge shows the cursor position among count items. The cursor row
+// gets a blue background in the focused panel and a grey one in the others;
+// lines beyond count, such as an empty-list hint, are never the cursor.
 func (m Model) panel(which panel, detail string, lines []string, count, cursor, width, height int) string {
 	isFocused := m.focus == which
 	number, name, chrome := styleMuted, lipgloss.NewStyle(), styleMuted
@@ -136,7 +156,7 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	}
 	title := number.Render(fmt.Sprintf("[%d]", which)) + chrome.Render("─") + name.Render(panelNames[which-1])
 	if detail != "" {
-		title += styleMuted.Render(" · " + detail)
+		title += styleMuted.Render(" · ") + detail
 	}
 	note := ""
 	if count > 0 {
@@ -144,13 +164,17 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	}
 	rows := height - 2
 	start := max(0, cursor-rows+1)
+	selected := styleInactive
+	if isFocused {
+		selected = styleSelected
+	}
 	var body []string
 	for i := start; i < len(lines) && i < start+rows; i++ {
-		marker := "  "
+		line := " " + lines[i]
 		if i == cursor && count > 0 {
-			marker = chrome.Render("▸ ")
+			line = fill(line, selected, width-2)
 		}
-		body = append(body, marker+lines[i])
+		body = append(body, line)
 	}
 	return frame(title, note, body, chrome, width, height)
 }
@@ -174,6 +198,21 @@ func frame(title, note string, lines []string, chrome lipgloss.Style, width, hei
 	return strings.Join(out, "\n")
 }
 
+// fill pads line to width cells and paints it with style. Styled spans inside
+// line end in an SGR reset, which would drop style from there on, so style is
+// set again after each reset.
+func fill(line string, style lipgloss.Style, width int) string {
+	line = cut(line, width)
+	line += repeat(" ", width-lipgloss.Width(line))
+	open, _, _ := strings.Cut(style.Render(" "), " ")
+	if open == "" {
+		return line
+	}
+	return open + strings.ReplaceAll(line, sgrReset, sgrReset+open) + sgrReset
+}
+
+const sgrReset = "\x1b[0m"
+
 // repeat is strings.Repeat that yields "" for a negative count, which frame
 // computes on a terminal narrower than its panels.
 func repeat(s string, count int) string {
@@ -190,7 +229,7 @@ func (m Model) hostLines() []string {
 	for _, host := range m.hosts() {
 		mark := "  "
 		if host.IsPinned {
-			mark = stylePin.Render("*") + " "
+			mark = stylePin.Render(pinSymbol) + " "
 		}
 		line := mark + host.Name
 		counts := map[forwardStatus]int{}
@@ -223,20 +262,24 @@ func (m Model) forwardLines(forwards []workspace.Forward) []string {
 	var lines []string
 	for _, forward := range forwards {
 		status := m.status(forward)
-		local := forward.LocalEnd().String()
-		link := local
-		if url, isWeb := forward.LocalURL(); isWeb {
-			link = hyperlink(url, styleLink.Render(local))
-		}
-		padding := strings.Repeat(" ", localWidth-len(local))
+		padding := strings.Repeat(" ", localWidth-len(forward.LocalEnd().String()))
 		arrow := "→"
 		if forward.Direction == workspace.Remote {
 			arrow = "←"
 		}
 		remote := styleMuted.Render(forward.Host+":") + forward.RemoteEnd().String()
-		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), link, padding, styleMuted.Render(arrow), remote))
+		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), localLink(forward), padding, styleMuted.Render(arrow), remote))
 	}
 	return lines
+}
+
+// localLink is the forward's local end, clickable when it serves the web.
+func localLink(forward workspace.Forward) string {
+	local := forward.LocalEnd().String()
+	if url, isWeb := forward.LocalURL(); isWeb {
+		return hyperlink(url, styleLink.Render(local))
+	}
+	return local
 }
 
 func (m Model) hostForwardLines() []string {
@@ -248,14 +291,14 @@ func (m Model) hostForwardLines() []string {
 }
 
 func (m Model) listenersDetail() string {
-	scope := "yours"
+	scope := styleMuted.Render("yours")
 	if m.isShowingAllListeners {
-		scope = "all"
+		scope = styleMuted.Render("all")
 	}
 	if m.selectedHost() == "" {
 		return scope
 	}
-	return m.selectedHost() + " · " + scope
+	return hostTitle(m.selectedHost()) + styleMuted.Render(" · ") + scope
 }
 
 func (m Model) listenerLines() []string {
@@ -287,14 +330,26 @@ func (m Model) listenerLines() []string {
 	// Other users' ports include Docker's published ports, which belong to
 	// root's docker-proxy, so the hidden count names Docker.
 	if result.isOwnOnly && m.isShowingAllListeners {
-		lines = append(lines, styleMuted.Render(host+" shows you only your own ports; other users' need root there"))
+		lines = append(lines, styleMuted.Render(host+" lists only your ports; others need root"))
 	} else if hidden := len(result.listeners) - len(m.visibleListeners()); hidden > 0 {
-		lines = append(lines, styleMuted.Render(fmt.Sprintf("%d more of other users, such as Docker: t shows all", hidden)))
+		lines = append(lines, styleMuted.Render(fmt.Sprintf("+%d of other users, like Docker: t shows all", hidden)))
 	} else if len(lines) == 0 {
 		lines = append(lines, styleMuted.Render("no listening ports"))
 	}
 	return lines
 }
+
+// hostTitle is the selected host's name in a panel title: bold, since every
+// panel but Hosts and Live shows only that host.
+func hostTitle(host string) string {
+	if host == "" {
+		return ""
+	}
+	return styleBold.Render(host)
+}
+
+// pinSymbol marks a pinned host, in the pin colour.
+const pinSymbol = "★"
 
 // hyperlink wraps text in an OSC 8 escape, which most terminals make clickable.
 func hyperlink(url, text string) string {
@@ -304,11 +359,11 @@ func hyperlink(url, text string) string {
 func (m Model) formView(height int) string {
 	lines := []string{""}
 	for i, input := range m.form.inputs {
-		marker, label := "  ", styleMuted.Render(fmt.Sprintf("%-18s", m.form.labels[i]))
+		label := styleMuted.Render(fmt.Sprintf("%-18s", m.form.labels[i]))
 		if i == m.form.focus {
-			marker, label = styleFocus.Render("▸ "), styleFocus.Bold(true).Render(fmt.Sprintf("%-18s", m.form.labels[i]))
+			label = styleFocus.Bold(true).Render(fmt.Sprintf("%-18s", m.form.labels[i]))
 		}
-		lines = append(lines, " "+marker+label+" "+input.View()+" ")
+		lines = append(lines, "  "+label+" "+input.View()+" ")
 	}
 	lines = append(lines, "")
 	return m.modal(styleFocus.Bold(true).Render(m.form.title), lines, height)
@@ -337,22 +392,15 @@ func (m Model) modal(title string, lines []string, height int) string {
 	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
-// footer shows the selected forward's ssh command or failure, the last message, and the keys.
+// footer shows the last message and the keys.
 func (m Model) footer() string {
 	var lines []string
-	if forward, ok := m.focusedForward(); ok && m.form == nil && m.quitDialog == nil {
-		if status := m.state.Status(forward.ID); status.State == tunnel.Failed {
-			lines = append(lines, styleFailed.Render("✗ "+status.Reason))
-		} else {
-			lines = append(lines, styleMuted.Render("$ ssh -N "+strings.Join(forward.SSHArgs(), " ")+" -- "+forward.Host))
-		}
-	}
 	if m.message != "" {
 		lines = append(lines, styleFailed.Render(m.message))
 	}
 	var hints []string
 	for _, hint := range m.keyHints() {
-		hints = append(hints, hint.key+" "+styleMuted.Render(hint.action))
+		hints = append(hints, styleBold.Render(hint.key)+" "+styleMuted.Render(hint.action))
 	}
 	lines = append(lines, strings.Join(hints, styleMuted.Render(" · ")))
 	return lipgloss.NewStyle().MaxWidth(m.width).Render(strings.Join(lines, "\n"))
