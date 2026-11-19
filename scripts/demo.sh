@@ -28,7 +28,8 @@ go build -o "$work/bin/lazyfwd" "$repo"
 # vhs draws the terminal in headless Chromium on a page that ttyd serves, and Chromium
 # silently falls back to another font when the tape's font is not installed. So that the
 # recording uses pixi's font-ttf-geist without installing anything, a ttyd shim serves
-# ttyd's own page with Geist Mono embedded as a web font.
+# ttyd's own page with Geist Mono embedded as a web font. Drop it once vhs can load
+# fonts itself: https://github.com/charmbracelet/vhs/issues/808
 fonts=${CONDA_PREFIX:?run this as pixi run demo}/fonts
 ttyd_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
 ttyd -i 127.0.0.1 -p "$ttyd_port" true >/dev/null 2>&1 &
