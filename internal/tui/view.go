@@ -27,8 +27,11 @@ const (
 // hints, unfocused borders) is faint rather than ANSI 8 ("bright black"),
 // which some themes, such as Solarized Dark, map to the background colour.
 var (
-	colorFocus    = lipgloss.Color("6") // focused panel and form field
-	colorSelected = lipgloss.Color("4") // cursor row's background, as in lazygit
+	colorFocus = lipgloss.Color("6") // focused panel and form field
+	// colorSelected is the cursor row's background: blue, as in lazygit. Light
+	// themes' blue is saturated enough that dark text on it is hard to read,
+	// so light terminals get a pale blue instead.
+	colorSelected = lipgloss.AdaptiveColor{Light: "153", Dark: "4"}
 	// colorInactive is the background of an unfocused panel's cursor row: a
 	// grey a step off the terminal's background. ANSI 8 would be the theme's
 	// own grey, but some themes, such as Solarized Dark, make it the background.
