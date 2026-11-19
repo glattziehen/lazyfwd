@@ -1,7 +1,9 @@
 #!/bin/sh
 # Records the terminal UI with made-up hosts to .github/assets/demo-{dark,light}.gif for
 # the README, and the same recordings as .mp4 next to them.
-# Linux and macOS. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg.
+# Linux and macOS. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg,
+# and the Geist Mono font the tape sets. It writes nothing outside a temporary directory
+# and the recordings.
 # scripts/demo.tape holds the keystrokes.
 #
 # The hosts are aliases in a throwaway ssh config that all reach a throwaway sshd on
@@ -22,6 +24,46 @@ trap cleanup EXIT INT TERM
 
 mkdir -p "$work/bin"
 go build -o "$work/bin/lazyfwd" "$repo"
+
+# vhs draws the terminal in headless Chromium on a page that ttyd serves, and Chromium
+# silently falls back to another font when the tape's font is not installed. So that the
+# recording uses pixi's font-ttf-geist without installing anything, a ttyd shim serves
+# ttyd's own page with Geist Mono embedded as a web font. Drop it once vhs can load
+# fonts itself: https://github.com/charmbracelet/vhs/issues/808
+fonts=${CONDA_PREFIX:?run this as pixi run demo}/fonts
+ttyd_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+ttyd -i 127.0.0.1 -p "$ttyd_port" true >/dev/null 2>&1 &
+ttyd_pid=$!
+python3 -I - "$ttyd_port" "$fonts" "$work/index.html" <<'PY'
+import base64, sys, time, urllib.request
+port, fonts, out = sys.argv[1:]
+for _ in range(50):
+    try:
+        page = urllib.request.urlopen(f"http://127.0.0.1:{port}/").read().decode()
+        break
+    except OSError:
+        time.sleep(0.1)
+else:
+    sys.exit("ttyd did not serve its page")
+faces = "".join(
+    '@font-face{font-family:"Geist Mono";font-weight:%s;'
+    'src:url(data:font/ttf;base64,%s) format("truetype")}'
+    % (weight, base64.b64encode(open(f"{fonts}/GeistMono-{name}.ttf", "rb").read()).decode())
+    for weight, name in (("400", "Regular"), ("700", "Bold"))
+)
+# Load both weights before xterm measures its cells.
+preload = ('<script>document.fonts.load(\'16px "Geist Mono"\');'
+           'document.fonts.load(\'bold 16px "Geist Mono"\');</script>')
+if "</head>" not in page:
+    sys.exit("ttyd's page has no </head> to add the font to")
+open(out, "w").write(page.replace("</head>", f"<style>{faces}</style>{preload}</head>", 1))
+PY
+kill "$ttyd_pid"
+cat > "$work/bin/ttyd" <<TTYD
+#!/bin/sh
+exec $(command -v ttyd) --index "$work/index.html" "\$@"
+TTYD
+chmod +x "$work/bin/ttyd"
 
 # The fake uname and ss, and the sshd ForceCommand that puts them first on PATH.
 mkdir -p "$work/remote-bin"
