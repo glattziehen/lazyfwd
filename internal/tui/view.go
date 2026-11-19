@@ -29,6 +29,10 @@ const (
 var (
 	colorFocus    = lipgloss.Color("6") // focused panel and form field
 	colorSelected = lipgloss.Color("4") // cursor row's background, as in lazygit
+	// colorInactive is the background of an unfocused panel's cursor row: a
+	// grey a step off the terminal's background. ANSI 8 would be the theme's
+	// own grey, but some themes, such as Solarized Dark, make it the background.
+	colorInactive = lipgloss.AdaptiveColor{Light: "254", Dark: "237"}
 	colorRunning  = lipgloss.Color("2")
 	colorFailed   = lipgloss.Color("1")
 	colorPin      = lipgloss.Color("3")
@@ -43,8 +47,10 @@ var (
 	// readable on the cursor row's background.
 	styleLink = lipgloss.NewStyle().Underline(true)
 	// styleSelected marks the cursor row of the focused panel and the chosen
-	// button; an unfocused panel's cursor row is only bold, as in lazygit.
+	// button. styleInactive marks the cursor row of the other panels, so the
+	// selected host, which the other panels show, stays easy to spot.
 	styleSelected = lipgloss.NewStyle().Background(colorSelected)
+	styleInactive = lipgloss.NewStyle().Background(colorInactive).Bold(true)
 )
 
 // forwardStatus is what the UI shows for a forward; each status has one
@@ -121,9 +127,9 @@ func (m Model) View() string {
 	host := m.selectedHost()
 	side := lipgloss.JoinVertical(lipgloss.Left,
 		m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, sideWidth, panelHeight),
-		m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, sideWidth, panelHeight),
+		m.panel(panelForwards, hostTitle(host), m.hostForwardLines(), len(m.forwards()), m.forwardIndex, sideWidth, panelHeight),
 		m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, sideWidth, panelHeight),
-		m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), sideWidth, liveHeight),
+		m.panel(panelLive, styleMuted.Render("all hosts"), liveLines, len(live), m.liveCursor(live), sideWidth, liveHeight),
 	)
 	if sideWidth < m.width {
 		side = lipgloss.JoinHorizontal(lipgloss.Top, side, m.detailsView(m.width-sideWidth, lipgloss.Height(side)))
@@ -137,8 +143,8 @@ var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening", "Live"}
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
 // title reads "[n]─Name · detail", where n is the panel's number key, and the
 // bottom edge shows the cursor position among count items. The cursor row
-// gets a background in the focused panel and bold in the others; lines beyond
-// count, such as an empty-list hint, are never the cursor.
+// gets a blue background in the focused panel and a grey one in the others;
+// lines beyond count, such as an empty-list hint, are never the cursor.
 func (m Model) panel(which panel, detail string, lines []string, count, cursor, width, height int) string {
 	isFocused := m.focus == which
 	number, name, chrome := styleMuted, lipgloss.NewStyle(), styleMuted
@@ -147,7 +153,7 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	}
 	title := number.Render(fmt.Sprintf("[%d]", which)) + chrome.Render("─") + name.Render(panelNames[which-1])
 	if detail != "" {
-		title += styleMuted.Render(" · " + detail)
+		title += styleMuted.Render(" · ") + detail
 	}
 	note := ""
 	if count > 0 {
@@ -155,7 +161,7 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	}
 	rows := height - 2
 	start := max(0, cursor-rows+1)
-	selected := styleBold
+	selected := styleInactive
 	if isFocused {
 		selected = styleSelected
 	}
@@ -220,7 +226,7 @@ func (m Model) hostLines() []string {
 	for _, host := range m.hosts() {
 		mark := "  "
 		if host.IsPinned {
-			mark = stylePin.Render("*") + " "
+			mark = stylePin.Render(pinSymbol) + " "
 		}
 		line := mark + host.Name
 		counts := map[forwardStatus]int{}
@@ -282,14 +288,14 @@ func (m Model) hostForwardLines() []string {
 }
 
 func (m Model) listenersDetail() string {
-	scope := "yours"
+	scope := styleMuted.Render("yours")
 	if m.isShowingAllListeners {
-		scope = "all"
+		scope = styleMuted.Render("all")
 	}
 	if m.selectedHost() == "" {
 		return scope
 	}
-	return m.selectedHost() + " · " + scope
+	return hostTitle(m.selectedHost()) + styleMuted.Render(" · ") + scope
 }
 
 func (m Model) listenerLines() []string {
@@ -329,6 +335,18 @@ func (m Model) listenerLines() []string {
 	}
 	return lines
 }
+
+// hostTitle is the selected host's name in a panel title: bold, since every
+// panel but Hosts and Live shows only that host.
+func hostTitle(host string) string {
+	if host == "" {
+		return ""
+	}
+	return styleBold.Render(host)
+}
+
+// pinSymbol marks a pinned host, in the pin colour.
+const pinSymbol = "★"
 
 // hyperlink wraps text in an OSC 8 escape, which most terminals make clickable.
 func hyperlink(url, text string) string {

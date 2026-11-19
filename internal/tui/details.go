@@ -103,7 +103,7 @@ func (m Model) hostDetails(host workspace.Host) []string {
 	}
 	name := styleBold.Render(host.Name)
 	if host.IsPinned {
-		name += " " + stylePin.Render("* pinned")
+		name += " " + stylePin.Render(pinSymbol+" pinned")
 	}
 	counts := map[forwardStatus]int{}
 	forwards := m.state.ForwardsOf(host.Name)
