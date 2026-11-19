@@ -2,7 +2,8 @@
 # Records the terminal UI with made-up hosts to .github/assets/demo-{dark,light}.gif for
 # the README, and the same recordings as .mp4 next to them.
 # Linux and macOS. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg,
-# and the Geist Mono font the tape sets.
+# and the Geist Mono font the tape sets. It writes nothing outside a temporary directory
+# and the recordings.
 # scripts/demo.tape holds the keystrokes.
 #
 # The hosts are aliases in a throwaway ssh config that all reach a throwaway sshd on
@@ -17,44 +18,51 @@ cleanup() {
   # ssh masters outlive a lazyfwd that did not quit cleanly.
   pkill -f -- "-F $work/home/.ssh/config" 2>/dev/null || true
   [ -f "$work/sshd/sshd.pid" ] && kill "$(cat "$work/sshd/sshd.pid")" 2>/dev/null || true
-  # Only the font files this script added to ~/Library/Fonts.
-  [ -f "$work/added-fonts" ] && while IFS= read -r f; do rm -f "$f"; done < "$work/added-fonts"
   rm -rf "$work"
 }
 trap cleanup EXIT INT TERM
 
-# vhs draws the terminal in headless Chromium, which silently falls back to another font when
-# the tape's font is missing. Linux Chromium finds fonts through fontconfig, so a config
-# adds pixi's font-ttf-geist to the system fonts. macOS Chromium only reads the system and
-# user font folders, so the font goes into ~/Library/Fonts for the recording.
-fonts=${CONDA_PREFIX:?run this as pixi run demo}/fonts
-if [ "$(uname -s)" = Darwin ]; then
-  : > "$work/added-fonts"
-  for f in "$fonts"/GeistMono-*.ttf; do
-    dest="$HOME/Library/Fonts/$(basename "$f")"
-    [ -e "$dest" ] && continue
-    cp "$f" "$dest"
-    echo "$dest" >> "$work/added-fonts"
-  done
-else
-  cat > "$work/fonts.conf" <<FONTS
-<?xml version="1.0"?>
-<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
-<fontconfig>
-  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
-  <dir>$fonts</dir>
-  <cachedir>$work/fontconfig-cache</cachedir>
-</fontconfig>
-FONTS
-  export FONTCONFIG_FILE="$work/fonts.conf"
-fi
-if [ -z "$(fc-list 'Geist Mono' family)" ]; then
-  echo "Geist Mono is not visible to fontconfig; the recording would use a fallback font" >&2
-  exit 1
-fi
-
 mkdir -p "$work/bin"
 go build -o "$work/bin/lazyfwd" "$repo"
+
+# vhs draws the terminal in headless Chromium on a page that ttyd serves, and Chromium
+# silently falls back to another font when the tape's font is not installed. So that the
+# recording uses pixi's font-ttf-geist without installing anything, a ttyd shim serves
+# ttyd's own page with Geist Mono embedded as a web font.
+fonts=${CONDA_PREFIX:?run this as pixi run demo}/fonts
+ttyd_port=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')
+ttyd -i 127.0.0.1 -p "$ttyd_port" true >/dev/null 2>&1 &
+ttyd_pid=$!
+python3 -I - "$ttyd_port" "$fonts" "$work/index.html" <<'PY'
+import base64, sys, time, urllib.request
+port, fonts, out = sys.argv[1:]
+for _ in range(50):
+    try:
+        page = urllib.request.urlopen(f"http://127.0.0.1:{port}/").read().decode()
+        break
+    except OSError:
+        time.sleep(0.1)
+else:
+    sys.exit("ttyd did not serve its page")
+faces = "".join(
+    '@font-face{font-family:"Geist Mono";font-weight:%s;'
+    'src:url(data:font/ttf;base64,%s) format("truetype")}'
+    % (weight, base64.b64encode(open(f"{fonts}/GeistMono-{name}.ttf", "rb").read()).decode())
+    for weight, name in (("400", "Regular"), ("700", "Bold"))
+)
+# Load both weights before xterm measures its cells.
+preload = ('<script>document.fonts.load(\'16px "Geist Mono"\');'
+           'document.fonts.load(\'bold 16px "Geist Mono"\');</script>')
+if "</head>" not in page:
+    sys.exit("ttyd's page has no </head> to add the font to")
+open(out, "w").write(page.replace("</head>", f"<style>{faces}</style>{preload}</head>", 1))
+PY
+kill "$ttyd_pid"
+cat > "$work/bin/ttyd" <<TTYD
+#!/bin/sh
+exec $(command -v ttyd) --index "$work/index.html" "\$@"
+TTYD
+chmod +x "$work/bin/ttyd"
 
 # The fake uname and ss, and the sshd ForceCommand that puts them first on PATH.
 mkdir -p "$work/remote-bin"
