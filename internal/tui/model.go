@@ -627,17 +627,6 @@ func (m Model) selectedLive() (workspace.Forward, bool) {
 	return live[i], true
 }
 
-// focusedForward is the forward under the cursor of a focused forward list.
-func (m Model) focusedForward() (workspace.Forward, bool) {
-	switch m.focus {
-	case panelLive:
-		return m.selectedLive()
-	case panelForwards:
-		return m.selectedForward()
-	}
-	return workspace.Forward{}, false
-}
-
 func (m *Model) selectHost(name string) {
 	for i, host := range m.hosts() {
 		if host.Name == name {

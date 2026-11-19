@@ -11,13 +11,15 @@ import (
 )
 
 const (
-	hostsPanelWidth    = 34
-	minListenersHeight = 7
-	// maxLiveRows caps the Live panel, which scrolls beyond it.
-	maxLiveRows = 6
-	// maxFooterLines is the footer's height at most: the selected forward's
-	// command or failure, a message, and the key hints.
-	maxFooterLines = 3
+	// The side column takes two fifths of the screen, at least
+	// minSideWidth columns. Below minDetailsWidth left over, the Details
+	// pane is dropped and the side column takes the whole screen.
+	minSideWidth    = 40
+	minDetailsWidth = 24
+	// minPanelHeight fits a panel's frame and one row.
+	minPanelHeight = 3
+	// maxFooterLines is the footer's height at most: a message and the key hints.
+	maxFooterLines = 2
 )
 
 // Colours are ANSI 0-15, so the terminal theme decides the shades. Each
@@ -106,23 +108,27 @@ func (m Model) View() string {
 	if len(liveLines) == 0 {
 		liveLines = []string{styleMuted.Render("no running or failed forwards")}
 	}
-	// The Live panel, at the bottom, fits its rows, up to maxLiveRows and a
-	// third of the screen. The Forwards/Listening split assumes the tallest
-	// Live panel and footer, so a start or stop, which changes both, moves
-	// only the bottom edges above Live.
-	splitHeight := m.height - maxFooterLines
-	liveHeightMax := min(maxLiveRows+2, max(3, splitHeight/3))
-	liveHeight := min(len(liveLines)+2, liveHeightMax)
-	upperHeight := bodyHeight - liveHeight
-	forwardsHeight := splitHeight - liveHeightMax - max(minListenersHeight, (splitHeight-liveHeightMax)/3)
-	rightWidth := m.width - hostsPanelWidth
+	// The side column stacks the panels in key order, so h and l, which
+	// focus the previous and next panel, move up and down it, as in lazygit.
+	// Panels share the height left by the tallest footer; Live, at the
+	// bottom, takes the rest, so a message moves no panel's top edge.
+	sideWidth := max(minSideWidth, m.width*2/5)
+	if m.width-sideWidth < minDetailsWidth {
+		sideWidth = m.width
+	}
+	panelHeight := max(minPanelHeight, (m.height-maxFooterLines)/int(panelCount))
+	liveHeight := max(minPanelHeight, bodyHeight-int(panelCount-1)*panelHeight)
 	host := m.selectedHost()
-	hosts := m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, hostsPanelWidth, upperHeight)
-	forwards := m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, rightWidth, forwardsHeight)
-	listening := m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, rightWidth, upperHeight-forwardsHeight)
-	livePanel := m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), m.width, liveHeight)
-	right := lipgloss.JoinVertical(lipgloss.Left, forwards, listening)
-	return lipgloss.JoinVertical(lipgloss.Left, lipgloss.JoinHorizontal(lipgloss.Top, hosts, right), livePanel, footer)
+	side := lipgloss.JoinVertical(lipgloss.Left,
+		m.panel(panelHosts, "", m.hostLines(), len(m.hosts()), m.hostIndex, sideWidth, panelHeight),
+		m.panel(panelForwards, host, m.hostForwardLines(), len(m.forwards()), m.forwardIndex, sideWidth, panelHeight),
+		m.panel(panelListeners, m.listenersDetail(), m.listenerLines(), len(m.visibleListeners()), m.listenerIndex, sideWidth, panelHeight),
+		m.panel(panelLive, "all hosts", liveLines, len(live), m.liveCursor(live), sideWidth, liveHeight),
+	)
+	if sideWidth < m.width {
+		side = lipgloss.JoinHorizontal(lipgloss.Top, side, m.detailsView(m.width-sideWidth, lipgloss.Height(side)))
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, side, footer)
 }
 
 // panelNames are the panels' names, indexed by number key minus one.
@@ -247,20 +253,24 @@ func (m Model) forwardLines(forwards []workspace.Forward) []string {
 	var lines []string
 	for _, forward := range forwards {
 		status := m.status(forward)
-		local := forward.LocalEnd().String()
-		link := local
-		if url, isWeb := forward.LocalURL(); isWeb {
-			link = hyperlink(url, styleLink.Render(local))
-		}
-		padding := strings.Repeat(" ", localWidth-len(local))
+		padding := strings.Repeat(" ", localWidth-len(forward.LocalEnd().String()))
 		arrow := "→"
 		if forward.Direction == workspace.Remote {
 			arrow = "←"
 		}
 		remote := styleMuted.Render(forward.Host+":") + forward.RemoteEnd().String()
-		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), link, padding, styleMuted.Render(arrow), remote))
+		lines = append(lines, fmt.Sprintf("%s %s%s %s %s", status.style().Render(status.symbol()), localLink(forward), padding, styleMuted.Render(arrow), remote))
 	}
 	return lines
+}
+
+// localLink is the forward's local end, clickable when it serves the web.
+func localLink(forward workspace.Forward) string {
+	local := forward.LocalEnd().String()
+	if url, isWeb := forward.LocalURL(); isWeb {
+		return hyperlink(url, styleLink.Render(local))
+	}
+	return local
 }
 
 func (m Model) hostForwardLines() []string {
@@ -311,9 +321,9 @@ func (m Model) listenerLines() []string {
 	// Other users' ports include Docker's published ports, which belong to
 	// root's docker-proxy, so the hidden count names Docker.
 	if result.isOwnOnly && m.isShowingAllListeners {
-		lines = append(lines, styleMuted.Render(host+" shows you only your own ports; other users' need root there"))
+		lines = append(lines, styleMuted.Render(host+" lists only your ports; others need root"))
 	} else if hidden := len(result.listeners) - len(m.visibleListeners()); hidden > 0 {
-		lines = append(lines, styleMuted.Render(fmt.Sprintf("%d more of other users, such as Docker: t shows all", hidden)))
+		lines = append(lines, styleMuted.Render(fmt.Sprintf("+%d of other users, like Docker: t shows all", hidden)))
 	} else if len(lines) == 0 {
 		lines = append(lines, styleMuted.Render("no listening ports"))
 	}
@@ -361,16 +371,9 @@ func (m Model) modal(title string, lines []string, height int) string {
 	return lipgloss.Place(m.width, height, lipgloss.Center, lipgloss.Center, box)
 }
 
-// footer shows the selected forward's ssh command or failure, the last message, and the keys.
+// footer shows the last message and the keys.
 func (m Model) footer() string {
 	var lines []string
-	if forward, ok := m.focusedForward(); ok && m.form == nil && m.quitDialog == nil {
-		if status := m.state.Status(forward.ID); status.State == tunnel.Failed {
-			lines = append(lines, styleFailed.Render("✗ "+status.Reason))
-		} else {
-			lines = append(lines, styleMuted.Render("$ ssh -N "+strings.Join(forward.SSHArgs(), " ")+" -- "+forward.Host))
-		}
-	}
 	if m.message != "" {
 		lines = append(lines, styleFailed.Render(m.message))
 	}

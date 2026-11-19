@@ -43,7 +43,7 @@ Run `lazyfwd`, then:
 2. Press `tab` to reach Listening. Press `r` to refresh the ports, select one, and press `space` to forward it to your machine.
 3. Press `o` to open the forward's local end in your browser. Supported terminals also make web ports clickable.
 
-Use `tab`, `h` and `l`, or `1` through `4` to switch panels. In Forwards, press `a` to add a local forward by hand, `A` to add a remote forward, or `space` to start or stop a forward. You can forward TCP ports and Unix sockets in either direction (`-L` or `-R`). Press `?` for all keys.
+The four panels stack in a column on the left, and a Details pane on the right describes the selected host, forward, or port. Use `h` and `l` (or `tab`) to step up and down the column, or `1` through `4` to jump to a panel. In Forwards, press `a` to add a local forward by hand, `A` to add a remote forward, or `space` to start or stop a forward. You can forward TCP ports and Unix sockets in either direction (`-L` or `-R`). Press `?` for all keys.
 
 By default, lazyfwd keeps the same local port as the remote port, or uses the nearest free one. Forwards stop when you quit and return stopped the next time you run lazyfwd. Hosts, pins, and forwards are saved in `$XDG_CONFIG_HOME/lazyfwd/workspace.json` (`~/.config` on Linux, `~/Library/Application Support` on macOS, `%AppData%` on Windows).
 

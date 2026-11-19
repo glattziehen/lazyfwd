@@ -58,8 +58,7 @@ func panelTops(view string) map[string]int {
 	return tops
 }
 
-// Starting or stopping a forward changes Live's height; the panels above it
-// must not jump.
+// Starting or stopping a forward changes the Live list; no panel may jump.
 func TestLiveHeightMovesNoOtherPanelsTop(t *testing.T) {
 	for _, size := range []tea.WindowSizeMsg{{Width: 120, Height: 35}, {Width: 80, Height: 24}} {
 		empty := send(newLiveModel(t), size)
