@@ -1,9 +1,11 @@
 # Keystrokes for .github/assets/demo-{dark,light}.{gif,mp4}. Run through scripts/demo.sh, which
 # sets up the made-up hosts this expects and prepends Output and Set Theme per recording.
 Set Shell "bash"
+Set FontFamily "Geist Mono"
 Set FontSize 16
-Set Width 1200
-Set Height 560
+Set LineHeight 1.1
+Set Width 1320
+Set Height 640
 Set Padding 16
 Set TypingSpeed 0
 

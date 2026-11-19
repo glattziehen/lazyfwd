@@ -1,7 +1,8 @@
 #!/bin/sh
 # Records the terminal UI with made-up hosts to .github/assets/demo-{dark,light}.gif for
 # the README, and the same recordings as .mp4 next to them.
-# Linux and macOS. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg.
+# Linux and macOS. Run it as "pixi run demo", which provides go and vhs with its ttyd and ffmpeg,
+# and the Geist Mono font the tape sets.
 # scripts/demo.tape holds the keystrokes.
 #
 # The hosts are aliases in a throwaway ssh config that all reach a throwaway sshd on
@@ -16,9 +17,41 @@ cleanup() {
   # ssh masters outlive a lazyfwd that did not quit cleanly.
   pkill -f -- "-F $work/home/.ssh/config" 2>/dev/null || true
   [ -f "$work/sshd/sshd.pid" ] && kill "$(cat "$work/sshd/sshd.pid")" 2>/dev/null || true
+  # Only the font files this script added to ~/Library/Fonts.
+  [ -f "$work/added-fonts" ] && while IFS= read -r f; do rm -f "$f"; done < "$work/added-fonts"
   rm -rf "$work"
 }
 trap cleanup EXIT INT TERM
+
+# vhs draws the terminal in headless Chromium, which silently falls back to another font when
+# the tape's font is missing. Linux Chromium finds fonts through fontconfig, so a config
+# adds pixi's font-ttf-geist to the system fonts. macOS Chromium only reads the system and
+# user font folders, so the font goes into ~/Library/Fonts for the recording.
+fonts=${CONDA_PREFIX:?run this as pixi run demo}/fonts
+if [ "$(uname -s)" = Darwin ]; then
+  : > "$work/added-fonts"
+  for f in "$fonts"/GeistMono-*.ttf; do
+    dest="$HOME/Library/Fonts/$(basename "$f")"
+    [ -e "$dest" ] && continue
+    cp "$f" "$dest"
+    echo "$dest" >> "$work/added-fonts"
+  done
+else
+  cat > "$work/fonts.conf" <<FONTS
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
+<fontconfig>
+  <include ignore_missing="yes">/etc/fonts/fonts.conf</include>
+  <dir>$fonts</dir>
+  <cachedir>$work/fontconfig-cache</cachedir>
+</fontconfig>
+FONTS
+  export FONTCONFIG_FILE="$work/fonts.conf"
+fi
+if [ -z "$(fc-list 'Geist Mono' family)" ]; then
+  echo "Geist Mono is not visible to fontconfig; the recording would use a fallback font" >&2
+  exit 1
+fi
 
 mkdir -p "$work/bin"
 go build -o "$work/bin/lazyfwd" "$repo"

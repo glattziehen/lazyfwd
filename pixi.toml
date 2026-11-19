@@ -22,6 +22,7 @@ actionlint = ">=1.7.12,<2"
 vhs = ">=0.12.1,<0.13"
 ttyd = ">=1.7.7,<2"
 ffmpeg = ">=9.0.2,<10"
+font-ttf-geist = ">=1.9.2,<2"
 
 [activation.env]
 # conda-forge's go expects a conda C compiler for cgo; lazyfwd needs no cgo.
