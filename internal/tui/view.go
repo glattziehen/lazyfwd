@@ -25,19 +25,24 @@ const (
 // hints, unfocused borders) is faint rather than ANSI 8 ("bright black"),
 // which some themes, such as Solarized Dark, map to the background colour.
 var (
-	colorFocus   = lipgloss.Color("6") // focused panel, cursor, and form field
-	colorRunning = lipgloss.Color("2")
-	colorFailed  = lipgloss.Color("1")
-	colorLink    = lipgloss.Color("4") // clickable local ends
-	colorPin     = lipgloss.Color("3")
+	colorFocus    = lipgloss.Color("6") // focused panel and form field
+	colorSelected = lipgloss.Color("4") // cursor row's background, as in lazygit
+	colorRunning  = lipgloss.Color("2")
+	colorFailed   = lipgloss.Color("1")
+	colorPin      = lipgloss.Color("3")
 
 	styleFocus   = lipgloss.NewStyle().Foreground(colorFocus)
 	styleRunning = lipgloss.NewStyle().Foreground(colorRunning)
 	styleFailed  = lipgloss.NewStyle().Foreground(colorFailed)
 	styleMuted   = lipgloss.NewStyle().Faint(true)
-	styleLink    = lipgloss.NewStyle().Foreground(colorLink)
 	stylePin     = lipgloss.NewStyle().Foreground(colorPin)
 	styleBold    = lipgloss.NewStyle().Bold(true)
+	// Clickable local ends are underlined rather than coloured, so they stay
+	// readable on the cursor row's background.
+	styleLink = lipgloss.NewStyle().Underline(true)
+	// styleSelected marks the cursor row of the focused panel and the chosen
+	// button; an unfocused panel's cursor row is only bold, as in lazygit.
+	styleSelected = lipgloss.NewStyle().Background(colorSelected)
 )
 
 // forwardStatus is what the UI shows for a forward; each status has one
@@ -124,10 +129,10 @@ func (m Model) View() string {
 var panelNames = [panelCount]string{"Hosts", "Forwards", "Listening", "Live"}
 
 // panel draws a framed list that scrolls to keep the cursor row visible. Its
-// title reads "[n]─Name · detail", where n is the panel's number key, and the bottom edge shows the cursor
-// position among count items. The cursor is a marker column, since reverse
-// video breaks at the first styled cell inside a row; lines beyond count, such
-// as an empty-list hint, get no marker.
+// title reads "[n]─Name · detail", where n is the panel's number key, and the
+// bottom edge shows the cursor position among count items. The cursor row
+// gets a background in the focused panel and bold in the others; lines beyond
+// count, such as an empty-list hint, are never the cursor.
 func (m Model) panel(which panel, detail string, lines []string, count, cursor, width, height int) string {
 	isFocused := m.focus == which
 	number, name, chrome := styleMuted, lipgloss.NewStyle(), styleMuted
@@ -144,13 +149,17 @@ func (m Model) panel(which panel, detail string, lines []string, count, cursor, 
 	}
 	rows := height - 2
 	start := max(0, cursor-rows+1)
+	selected := styleBold
+	if isFocused {
+		selected = styleSelected
+	}
 	var body []string
 	for i := start; i < len(lines) && i < start+rows; i++ {
-		marker := "  "
+		line := " " + lines[i]
 		if i == cursor && count > 0 {
-			marker = chrome.Render("▸ ")
+			line = fill(line, selected, width-2)
 		}
-		body = append(body, marker+lines[i])
+		body = append(body, line)
 	}
 	return frame(title, note, body, chrome, width, height)
 }
@@ -173,6 +182,21 @@ func frame(title, note string, lines []string, chrome lipgloss.Style, width, hei
 	out = append(out, chrome.Render("╰"+repeat("─", innerWidth-1-lipgloss.Width(note)))+note+chrome.Render("─╯"))
 	return strings.Join(out, "\n")
 }
+
+// fill pads line to width cells and paints it with style. Styled spans inside
+// line end in an SGR reset, which would drop style from there on, so style is
+// set again after each reset.
+func fill(line string, style lipgloss.Style, width int) string {
+	line = cut(line, width)
+	line += repeat(" ", width-lipgloss.Width(line))
+	open, _, _ := strings.Cut(style.Render(" "), " ")
+	if open == "" {
+		return line
+	}
+	return open + strings.ReplaceAll(line, sgrReset, sgrReset+open) + sgrReset
+}
+
+const sgrReset = "\x1b[0m"
 
 // repeat is strings.Repeat that yields "" for a negative count, which frame
 // computes on a terminal narrower than its panels.
@@ -304,11 +328,11 @@ func hyperlink(url, text string) string {
 func (m Model) formView(height int) string {
 	lines := []string{""}
 	for i, input := range m.form.inputs {
-		marker, label := "  ", styleMuted.Render(fmt.Sprintf("%-18s", m.form.labels[i]))
+		label := styleMuted.Render(fmt.Sprintf("%-18s", m.form.labels[i]))
 		if i == m.form.focus {
-			marker, label = styleFocus.Render("▸ "), styleFocus.Bold(true).Render(fmt.Sprintf("%-18s", m.form.labels[i]))
+			label = styleFocus.Bold(true).Render(fmt.Sprintf("%-18s", m.form.labels[i]))
 		}
-		lines = append(lines, " "+marker+label+" "+input.View()+" ")
+		lines = append(lines, "  "+label+" "+input.View()+" ")
 	}
 	lines = append(lines, "")
 	return m.modal(styleFocus.Bold(true).Render(m.form.title), lines, height)
@@ -352,7 +376,7 @@ func (m Model) footer() string {
 	}
 	var hints []string
 	for _, hint := range m.keyHints() {
-		hints = append(hints, hint.key+" "+styleMuted.Render(hint.action))
+		hints = append(hints, styleBold.Render(hint.key)+" "+styleMuted.Render(hint.action))
 	}
 	lines = append(lines, strings.Join(hints, styleMuted.Render(" · ")))
 	return lipgloss.NewStyle().MaxWidth(m.width).Render(strings.Join(lines, "\n"))

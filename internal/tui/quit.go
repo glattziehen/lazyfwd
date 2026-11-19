@@ -52,11 +52,11 @@ func (m Model) quitView(height int) string {
 	default:
 		lines = append(lines, fmt.Sprintf("  %d running forwards will stop.  ", running))
 	}
-	yes, no := styleFocus.Bold(true).Render("▸ Yes"), "  No"
+	yes, no := styleSelected.Render(" Yes "), " No "
 	if m.quitDialog.isNoSelected {
-		yes, no = "  Yes", styleFocus.Bold(true).Render("▸ No")
+		yes, no = " Yes ", styleSelected.Render(" No ")
 	}
-	lines = append(lines, "", "  "+yes+"    "+no+"  ", "")
+	lines = append(lines, "", "  "+yes+"   "+no+"  ", "")
 	return m.modal(styleFocus.Bold(true).Render("Quit lazyfwd?"), lines, height)
 }
 
