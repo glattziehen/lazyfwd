@@ -96,6 +96,28 @@ jobs:
           LAZYFWD_E2E_CONFIG_FORWARD_HOST: lazyfwd-e2e-forwarding
           LAZYFWD_E2E_DENIED_HOST: lazyfwd-e2e-denied
 
+  # The install scripts against the latest release, as the README's install commands run them.
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: runner.os != 'Windows'
+        run: |
+          sh scripts/install.sh
+          ~/.local/bin/lazyfwd --version
+      # Windows PowerShell, which `irm | iex` users most often run.
+      - if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Get-Content -Raw scripts/install.ps1 | Invoke-Expression
+          lazyfwd --version
+
   # The pre-commit hook over every file: a formatter rewrite or a lint finding fails it.
   lint:
     runs-on: ubuntu-latest

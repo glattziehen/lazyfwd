@@ -37,3 +37,7 @@ checksum:
 release:
   # A rerun replaces the assets an earlier run uploaded.
   replace_existing_artifacts: true
+  # The README's install commands fetch these from the latest release.
+  extra_files:
+    - glob: ./scripts/install.sh
+    - glob: ./scripts/install.ps1
