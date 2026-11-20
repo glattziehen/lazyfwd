@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.2](https://github.com/glattziehen/lazyfwd/compare/v0.1.1...v0.1.2) - 2026-11-20
+
+### Features
+
+- Install with a one-line shell or PowerShell script ([#38](https://github.com/glattziehen/lazyfwd/pull/38))
+- _(tui)_ Delete a port's forward from the Listening panel ([#40](https://github.com/glattziehen/lazyfwd/pull/40))
+
 ## [0.1.1](https://github.com/glattziehen/lazyfwd/compare/v0.1.0...v0.1.1) - 2026-11-19
 
 ### Features
