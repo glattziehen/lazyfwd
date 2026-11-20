@@ -30,6 +30,7 @@ var keyHelpRows = []keyHelpRow{
 	{"a", "Listening", "add a local forward"},
 	{"space, enter, f", "Listening", "forward this port, or start or stop its forward"},
 	{"o", "Listening", "open the port's forward in the browser"},
+	{"d", "Listening", "delete the port's forward"},
 	{"t", "Listening", "show your ports or all ports"},
 	{"space, s", "Live", "start or stop the forward"},
 	{"enter", "Live", "show the forward in its host's Forwards"},

@@ -54,6 +54,21 @@ func TestListeningOpenOnUnforwardedPortAsksToForwardFirst(t *testing.T) {
 	}
 }
 
+func TestListeningDeleteRemovesThePortsForward(t *testing.T) {
+	m := send(newListeningModel(t), keyMsg("d"))
+	if len(m.state.Forwards) != 0 {
+		t.Fatalf("forwards = %v, want none", m.state.Forwards)
+	}
+}
+
+func TestListeningDeleteOnUnforwardedPortDeletesNothing(t *testing.T) {
+	m := newListeningModel(t)
+	m = send(send(m, keyMsg("j")), keyMsg("d"))
+	if m.message != "port 8080 has no forward yet; press enter to forward it" || len(m.state.Forwards) != 1 {
+		t.Fatalf("message = %q, forwards = %d", m.message, len(m.state.Forwards))
+	}
+}
+
 func TestEscFocusesHostsWithoutFetching(t *testing.T) {
 	m := newListeningModel(t)
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})

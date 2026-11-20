@@ -426,7 +426,7 @@ func (m Model) keyHints() []keyHint {
 	case m.focus == panelHosts:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"enter", "forwards"}, {"a", "add host"}, {"p", "pin"}, {"d", "remove"}, {"h/l", "panels"}, {"q", "quit"}}
 	case m.focus == panelListeners:
-		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "forward/start/stop"}, {"o", "open"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"q", "quit"}}
+		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "forward/start/stop"}, {"o", "open"}, {"d", "delete"}, {"t", "yours/all"}, {"r", "refresh"}, {"a", "local fwd"}, {"h/l", "panels"}, {"q", "quit"}}
 	default:
 		return []keyHint{{"?", "help"}, {"j/k", "move"}, {"space", "start/stop"}, {"a", "local fwd"}, {"A", "remote fwd"}, {"e", "edit"}, {"d", "delete"}, {"o", "open"}, {"q", "quit"}}
 	}
