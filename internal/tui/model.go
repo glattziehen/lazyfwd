@@ -408,7 +408,7 @@ func (m *Model) updateListenerKey(key string) {
 	case "t":
 		m.isShowingAllListeners = !m.isShowingAllListeners
 		m.listenerIndex = 0
-	case "o":
+	case "o", "d":
 		listener, ok := m.selectedListener()
 		if !ok {
 			return
