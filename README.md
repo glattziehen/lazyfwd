@@ -17,7 +17,23 @@ Hosts comes from your SSH config, and you can add or pin hosts. Forwards shows t
 
 You need `ssh` on your `PATH`. lazyfwd runs on Linux, macOS, WSL, and Windows. See [Windows](#windows) for its limitations.
 
-Download an archive for your system from the [releases page](https://github.com/glattziehen/lazyfwd/releases), check it against `checksums.txt`, and put `lazyfwd` on your `PATH`. If Gatekeeper blocks a browser download on macOS, run `xattr -d com.apple.quarantine lazyfwd`.
+On Linux, macOS, and WSL:
+
+```sh
+curl -fsSL https://github.com/glattziehen/lazyfwd/releases/latest/download/install.sh | sh
+```
+
+It installs the latest release to `~/.local/bin` after checking its checksum. Set `LAZYFWD_INSTALL_DIR` to change that, or `LAZYFWD_VERSION=v0.1.1` to pin a release. On Windows, from PowerShell:
+
+```powershell
+irm https://github.com/glattziehen/lazyfwd/releases/latest/download/install.ps1 | iex
+```
+
+It installs to `%LOCALAPPDATA%\Programs\lazyfwd` and adds that to your user `PATH`. Set `LAZYFWD_NO_MODIFY_PATH` to keep the `PATH` as it is.
+
+Run the same command again to update.
+
+You can also download an archive for your system from the [releases page](https://github.com/glattziehen/lazyfwd/releases), check it against `checksums.txt`, and put `lazyfwd` on your `PATH`. If Gatekeeper blocks a browser download on macOS, run `xattr -d com.apple.quarantine lazyfwd`.
 
 Or install with Go 1.24 or later:
 
