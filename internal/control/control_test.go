@@ -2,8 +2,10 @@ package control
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/glattziehen/lazyfwd/internal/owner"
@@ -132,7 +134,11 @@ func TestSecondOwnerIsRefused(t *testing.T) {
 	store := newStore(t)
 	startOwner(t, store)
 
-	if _, err := Claim(store); err == nil {
+	_, err := Claim(store)
+	if err == nil {
 		t.Fatal("a second owner claimed the workspace")
+	}
+	if want := fmt.Sprintf("PID %d", os.Getpid()); !strings.Contains(err.Error(), want) {
+		t.Errorf("refusal %q does not name %s", err, want)
 	}
 }

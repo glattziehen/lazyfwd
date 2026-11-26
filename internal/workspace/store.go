@@ -80,9 +80,16 @@ func (s FileStore) Save(workspace Workspace) error {
 var ErrLocked = errors.New("another lazyfwd holds the workspace")
 
 // Lock is this process's claim on the workspace. The lock file also holds
-// the holder's address, where other lazyfwd processes reach it while it runs.
+// the Holder, so other lazyfwd processes can name it and reach it.
 type Lock struct {
 	file *os.File
+}
+
+// Holder is the process that holds the workspace's lock.
+type Holder struct {
+	PID int `json:"pid"`
+	// Address is where the holder answers, or "" while it answers nowhere.
+	Address string `json:"address,omitempty"`
 }
 
 // Lock claims the workspace for this process until Release is called or the
@@ -107,20 +114,25 @@ func (s FileStore) Lock() (*Lock, error) {
 		_ = file.Close()
 		return nil, fmt.Errorf("lock %s: %w", s.Path, err)
 	}
-	// A crashed holder leaves its address behind.
-	if err := file.Truncate(0); err != nil {
+	lock := &Lock{file: file}
+	// This replaces a crashed holder's record.
+	if err := lock.SetHolderAddress(""); err != nil {
 		_ = file.Close()
 		return nil, err
 	}
-	return &Lock{file: file}, nil
+	return lock, nil
 }
 
 // SetHolderAddress records where this process answers while it holds the lock.
 func (l *Lock) SetHolderAddress(address string) error {
+	content, err := json.Marshal(Holder{PID: os.Getpid(), Address: address})
+	if err != nil {
+		return err
+	}
 	if err := l.file.Truncate(0); err != nil {
 		return err
 	}
-	_, err := l.file.WriteAt([]byte(address), 0)
+	_, err = l.file.WriteAt(content, 0)
 	return err
 }
 
@@ -129,15 +141,24 @@ func (l *Lock) Release() {
 	_ = l.file.Close()
 }
 
-// HolderAddress is the address that the lock's holder recorded, or "" when it
-// recorded none. It is meaningful only while Lock fails with ErrLocked: a
-// crashed holder's address stays in the file until the next Lock.
-func (s FileStore) HolderAddress() (string, error) {
+// Holder is the process that recorded itself in the lock file, or the zero
+// Holder when none did. It is meaningful only while Lock fails with
+// ErrLocked: a crashed holder's record stays in the file until the next Lock.
+// A record that does not parse, such as the bare address of a lazyfwd from
+// before PIDs, counts as none.
+func (s FileStore) Holder() (Holder, error) {
 	content, err := os.ReadFile(s.lockPath())
 	if errors.Is(err, fs.ErrNotExist) {
-		return "", nil
+		return Holder{}, nil
 	}
-	return string(content), err
+	if err != nil {
+		return Holder{}, err
+	}
+	var holder Holder
+	if decodeErr := json.Unmarshal(content, &holder); decodeErr != nil {
+		holder = Holder{}
+	}
+	return holder, nil
 }
 
 func (s FileStore) lockPath() string {

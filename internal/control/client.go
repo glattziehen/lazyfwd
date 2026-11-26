@@ -25,12 +25,12 @@ const (
 
 // Claim locks the workspace for a new owner. It fails when an owner runs.
 func Claim(store workspace.FileStore) (*workspace.Lock, error) {
-	address, lock, err := find(store)
+	holder, lock, err := find(store)
 	if err != nil {
 		return nil, err
 	}
-	if address != "" {
-		return nil, fmt.Errorf("another lazyfwd is already running with %s; use it, or quit it first", store.Path)
+	if lock == nil {
+		return nil, fmt.Errorf("another lazyfwd (PID %d) is already running with %s; use it, or quit it first", holder.PID, store.Path)
 	}
 	return lock, nil
 }
@@ -47,12 +47,12 @@ type Client struct {
 // locks the workspace until Close, so that no owner starts meanwhile, and
 // loads it with the hosts that sshConfigHosts lists.
 func Connect(store workspace.FileStore, sshConfigHosts func() ([]string, error)) (*Client, error) {
-	address, lock, err := find(store)
+	holder, lock, err := find(store)
 	if err != nil {
 		return nil, err
 	}
-	if address != "" {
-		return &Client{address: address}, nil
+	if lock == nil {
+		return &Client{address: holder.Address}, nil
 	}
 	ws, err := store.Load()
 	if err != nil {
@@ -117,29 +117,28 @@ func call(address string, request Request) (Response, error) {
 	return response, nil
 }
 
-// find returns the address of the running owner or, when none runs, the
-// workspace's lock. The lock file's address counts only while its holder
-// answers there: a crashed owner leaves its address behind, but not its
-// lock.
-func find(store workspace.FileStore) (address string, lock *workspace.Lock, err error) {
+// find returns the running owner or, when none runs, the workspace's lock.
+// The lock file's holder counts only while it answers at its address: a
+// crashed owner leaves its record behind, but not its lock.
+func find(store workspace.FileStore) (workspace.Holder, *workspace.Lock, error) {
 	deadline := time.Now().Add(findTimeout)
 	for {
 		lock, err := store.Lock()
 		if err == nil {
-			return "", lock, nil
+			return workspace.Holder{}, lock, nil
 		}
 		if !errors.Is(err, workspace.ErrLocked) {
-			return "", nil, err
+			return workspace.Holder{}, nil, err
 		}
-		address, err := store.HolderAddress()
+		holder, err := store.Holder()
 		if err != nil {
-			return "", nil, err
+			return workspace.Holder{}, nil, err
 		}
-		if address != "" && answers(address) {
-			return address, nil, nil
+		if holder.Address != "" && answers(holder.Address) {
+			return holder, nil, nil
 		}
 		if time.Now().After(deadline) {
-			return "", nil, fmt.Errorf("another process holds %s.lock but answers on no control socket; if it is a lazyfwd from before the CLI, quit it and start it again", store.Path)
+			return workspace.Holder{}, nil, fmt.Errorf("another process holds %s.lock but answers on no control socket; if it is a lazyfwd from before this version, quit it and start it again", store.Path)
 		}
 		time.Sleep(findInterval)
 	}
