@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented in this file.
 
+## [0.1.3](https://github.com/glattziehen/lazyfwd/compare/v0.1.2...v0.1.3) - 2026-11-26
+
+### Bug fixes
+
+- Name the running lazyfwd's PID when refusing a second one ([#41](https://github.com/glattziehen/lazyfwd/pull/41))
+
 ## [0.1.2](https://github.com/glattziehen/lazyfwd/compare/v0.1.1...v0.1.2) - 2026-11-20
 
 ### Features
