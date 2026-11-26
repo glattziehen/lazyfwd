@@ -28,7 +28,8 @@ func TestLockRefusesSecondHolderUntilReleased(t *testing.T) {
 }
 
 // A client finds the running owner through the address in the lock file; a
-// crashed owner's address must not outlive the next Lock.
+// crashed owner's address must not outlive the next Lock, which records its
+// own PID.
 func TestLockForgetsTheLastHoldersAddress(t *testing.T) {
 	store := FileStore{Path: filepath.Join(t.TempDir(), "workspace.json")}
 	lock, err := store.Lock()
@@ -46,8 +47,8 @@ func TestLockForgetsTheLastHoldersAddress(t *testing.T) {
 	}
 	defer lock.Release()
 
-	if address, err := store.HolderAddress(); address != "" || err != nil {
-		t.Fatalf("address = %q, %v; want empty", address, err)
+	if holder, err := store.Holder(); holder != (Holder{PID: os.Getpid()}) || err != nil {
+		t.Fatalf("holder = %+v, %v; want this process without an address", holder, err)
 	}
 }
 
